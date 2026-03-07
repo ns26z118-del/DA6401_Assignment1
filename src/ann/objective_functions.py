@@ -20,8 +20,9 @@ class MSELoss:
         """
         Gradient w.r.t predictions
         """
-        N = self.y_true.shape[0]
-        return 2 * (self.y_pred - self.y_true) / N
+        # N = self.y_true.shape[0]
+        # return 2 * (self.y_pred - self.y_true) / N
+        return 2 * (self.y_pred - self.y_true) / (self.y_true.shape[0] * self.y_true.shape[1])
 
 
 class CrossEntropyLoss:

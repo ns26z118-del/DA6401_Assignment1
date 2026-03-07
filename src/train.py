@@ -136,20 +136,23 @@ def main():
     # print("New best model saved!")
 
 
-    weights = []
+    # weights = []
 
-    for layer in model.layers:
-        if hasattr(layer, "W"):
-            weights.append(layer.W)
-            weights.append(layer.b)
+    # for layer in model.layers:
+    #     if hasattr(layer, "W"):
+    #         weights.append(layer.W)
+    #         weights.append(layer.b)
 
-    weights = np.array(weights, dtype=object)
+    # weights = np.array(weights, dtype=object)
 
-    np.save("best_model.npy", weights)
+    # np.save("best_model.npy", weights)
+
+    best_weights = model.get_weights()
+    np.save("src/best_model.npy", best_weights)
 
     print("Model saved as best_model.npy")
 
-    with open("best_config.json", "w") as f:
+    with open("src/best_config.json", "w") as f:
         json.dump(vars(args), f, indent=4)
 
     print("Training complete!")

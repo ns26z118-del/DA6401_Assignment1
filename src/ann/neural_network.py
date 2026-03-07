@@ -3,14 +3,13 @@ Main Neural Network Model class
 Handles forward and backward propagation loops
 """
 
-
+import math
 import numpy as np
 import wandb
 from ann.neural_layer import NeuralLayer
 from ann.activations import Activation
 from ann.objective_functions import MSELoss, CrossEntropyLoss
-from ann.optimizers import SGD, Momentum, NAG, RMSProp
-# from ann.optimizers import SGD, Momentum, NAG, RMSProp, Adam, Nadam
+from ann.optimizers import SGD, Momentum, NAG, RMSProp, Adam, Nadam
 
 class NeuralNetwork:
     """
@@ -98,29 +97,26 @@ class NeuralNetwork:
 
     # def backward(self, y_true, y_pred):
     def backward(self):
-        """
-        Backward propagation to compute gradients.
-
-        Args:
-            y_true: True labels
-            y_pred: Predicted outputs (logits)
-        """
-        # VERY IMPORTANT: call loss forward first
-        # self.loss_fn.forward(y_pred, y_true)
-
-        grad_list = np.array()
-
-        # Gradient from loss
+        grad_list = []
         grad = self.loss_fn.backward()
         grad_list.append(grad)
-
-        # Backpropagate through layers
         for layer in reversed(self.layers):
             grad = layer.backward(grad)
             grad_list.append(grad)
-
         return grad_list
     
+    def get_weights(self):
+        weights = {}
+        for i, layer in enumerate(self.layers):
+            if hasattr(layer, 'W'):
+                weights[i] = {'W': layer.W, 'b': layer.b}
+        return weights
+
+    def set_weights(self, weights):
+        for i, layer in enumerate(self.layers):
+            if hasattr(layer, 'W') and i in weights:
+                layer.W = weights[i]['W']
+                layer.b = weights[i]['b']
 
     def update_weights(self):
         """
@@ -150,7 +146,11 @@ class NeuralNetwork:
                 logits = self.forward(X_batch)
 
                 # Compute loss
-                loss = self.loss_fn.forward(logits, y_batch)
+                if self.cli_args.loss == "mse":
+                    y_input = np.eye(10)[y_batch]   # one-hot
+                else:
+                    y_input = y_batch               # integer labels for cross-entropy
+                loss = self.loss_fn.forward(logits, y_input)
                 epoch_loss += loss
 
                 # Backward pass
@@ -160,7 +160,9 @@ class NeuralNetwork:
                 # Update parameters
                 self.update_weights()
 
-            avg_loss = epoch_loss / (n_samples // batch_size)
+            # avg_loss = epoch_loss / (n_samples // batch_size)              # ignores remainder samples
+            avg_loss = epoch_loss / math.ceil(n_samples / batch_size)
+
             print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}")
             wandb.log({
                 "epoch": epoch + 1,

@@ -9,6 +9,7 @@ class Args:
     loss = "cross_entropy"
     optimizer = "sgd"
     learning_rate = 0.01
+    weight_decay = 0.0
 
 cli_args = Args()
 
@@ -17,7 +18,10 @@ y = np.random.randint(0, 10, size=16)
 
 model = NeuralNetwork(cli_args)
 logits = model.forward(X)
-model.backward(y, logits)
+
+model.loss_fn.forward(logits, y)
+model.backward()
+
 model.update_weights()
 
 print("SUCCESS")

@@ -29,7 +29,7 @@ def parse_arguments():
                         default="cross_entropy")
 
     parser.add_argument("-o", "--optimizer",
-                        choices=["sgd", "momentum", "nag", "rmsprop"],
+                        choices=["sgd", "momentum", "nag", "rmsprop"], # Addnl: "adam", "nadam"
                         default="sgd")
 
     parser.add_argument("-lr", "--learning_rate",
@@ -59,20 +59,25 @@ def parse_arguments():
 
     return parser.parse_args()
 
+# def load_model(model_path, model):
+#     """
+#     Load trained weights and assign them to model layers.
+#     """
+
+#     weights = np.load(model_path, allow_pickle=True)
+
+#     idx = 0
+#     for layer in model.layers:
+#         if hasattr(layer, "W"):
+#             layer.W = weights[idx]
+#             layer.b = weights[idx + 1]
+#             idx += 2
+
+#     return model
+
 def load_model(model_path, model):
-    """
-    Load trained weights and assign them to model layers.
-    """
-
-    weights = np.load(model_path, allow_pickle=True)
-
-    idx = 0
-    for layer in model.layers:
-        if hasattr(layer, "W"):
-            layer.W = weights[idx]
-            layer.b = weights[idx + 1]
-            idx += 2
-
+    data = np.load(model_path, allow_pickle=True).item()
+    model.set_weights(data)
     return model
 
 def evaluate_model(model, X_test, y_test):

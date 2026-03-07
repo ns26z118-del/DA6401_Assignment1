@@ -74,8 +74,8 @@ class NAG:
                     self.v_W[i] = np.zeros_like(layer.W)
                     self.v_b[i] = np.zeros_like(layer.b)
 
-                v_prev_W = self.v_W[i]
-                v_prev_b = self.v_b[i]
+                v_prev_W = self.v_W[i].copy()
+                v_prev_b = self.v_b[i].copy()
 
                 self.v_W[i] = self.beta * self.v_W[i] + self.lr * grad_W
                 self.v_b[i] = self.beta * self.v_b[i] + self.lr * grad_b
