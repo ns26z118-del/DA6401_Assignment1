@@ -76,7 +76,7 @@ class NeuralNetwork:
         return out
 
  
-    def backward(self):
+    def backward(self, y_true=None, y_pred=None):
         grad_list = []
         grad = self.loss_fn.backward()
         grad_list.append(grad)
@@ -92,11 +92,20 @@ class NeuralNetwork:
                 weights[i] = {'W': layer.W, 'b': layer.b}
         return weights
 
+    # def set_weights(self, weights):
+    #     for i, layer in enumerate(self.layers):
+    #         if hasattr(layer, 'W') and i in weights:
+    #             layer.W = weights[i]['W']
+    #             layer.b = weights[i]['b']
+
     def set_weights(self, weights):
-        for i, layer in enumerate(self.layers):
-            if hasattr(layer, 'W') and i in weights:
-                layer.W = weights[i]['W']
-                layer.b = weights[i]['b']
+        idx = 0
+        for layer in self.layers:
+            if hasattr(layer, 'W'):
+                if idx in weights:
+                    layer.W = weights[idx]['W']
+                    layer.b = weights[idx]['b']
+                idx += 1
 
     def update_weights(self):
 

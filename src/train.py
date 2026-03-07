@@ -1,12 +1,12 @@
 import argparse
 import os
-import pickle
 import wandb
 import numpy as np
 import json
 from ann.neural_network import NeuralNetwork
 from utils.data_loader import load_data
 from sklearn.model_selection import train_test_split
+import ast
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Train a neural network")
@@ -44,9 +44,8 @@ def parse_arguments():
                         default=1)
 
     parser.add_argument("-sz", "--hidden_size",
-                        nargs="+",
-                        type=int,
-                        default=[128])
+                        type=str,
+                        default="[128]")
 
     parser.add_argument("-a", "--activation",
                         choices=["relu", "sigmoid", "tanh"],
@@ -80,7 +79,7 @@ def log_sample_images(X, y):
             table.add_data(wandb.Image(image), int(label))
             class_count[label] += 1
 
-        if all(v >= 5 for v in class_count.values()):
+        if len(class_count) == 10 and all(v >= 5 for v in class_count.values()):
             break
 
     wandb.log({"sample_images_per_class": table})
@@ -93,6 +92,14 @@ def main():
         project=args.wandb_project,
         config=vars(args)
     )
+
+    # args = argparse.Namespace(**wandb.config)
+    for key, val in wandb.config.items():
+        setattr(args, key, val)
+
+    # Ensure hidden_size is a list
+    if isinstance(args.hidden_size, str):
+        args.hidden_size = ast.literal_eval(args.hidden_size)
 
     # Load dataset
     X_train_full, y_train_full, _, _ = load_data(args.dataset)
@@ -115,17 +122,17 @@ def main():
         batch_size=args.batch_size
     )
 
-    accuracy, precision, recall, f1, loss = model.evaluate(X_val, y_val)
-    print(f"Validation Accuracy: {accuracy:.4f}")
+    # accuracy, precision, recall, f1, loss = model.evaluate(X_val, y_val)
+    val_accuracy, precision, recall, f1, val_loss = model.evaluate(X_val, y_val)
+    print(f"Validation Accuracy: {val_accuracy:.4f}")
     print(f"Validation f1-score: {f1:.4f}")
 
-
     wandb.log({
-    "test_accuracy": accuracy,
-    "test_loss": loss,
-    "precision": precision,
-    "recall": recall,
-    "f1": f1
+        "val_loss": val_loss,
+        "val_accuracy": val_accuracy,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1
     })
 
     best = False
@@ -133,7 +140,8 @@ def main():
     try:
         with open(f"models/{args.dataset}/best_config.json", "r") as f:
             json_data = json.load(f)
-        if json_data["metrics"]["f1"] < f1:
+         
+        if json_data.get("best_f1", 0) < f1:
             best = True
     except:
         best = True
@@ -143,19 +151,53 @@ def main():
         np.save(f"models/{args.dataset}/best_model.npy", best_weights)
 
         data = {
-            "config": vars(args),
-            "metrics": {
-                "accuracy": accuracy,
-                "precision": precision,
-                "recall": recall,
-                "f1": f1
-            }
+            "dataset": args.dataset,
+            "epochs": args.epochs,
+            "batch_size": args.batch_size,
+            "loss": args.loss,
+            "optimizer": args.optimizer,
+            "learning_rate": args.learning_rate,
+            "weight_decay": args.weight_decay,
+            "num_layers": args.num_layers,
+            "hidden_size": args.hidden_size,
+            "activation": args.activation,
+            "weight_init": args.weight_init
         }
 
         with open(f"models/{args.dataset}/best_config.json", "w") as f:
             json.dump(data, f, indent=4)
-        
+
         print("Model saved as best_model.npy")
+
+
+    # best = False
+    # os.makedirs(f"models/{args.dataset}", exist_ok=True)
+    # try:
+    #     with open(f"models/{args.dataset}/best_config.json", "r") as f:
+    #         json_data = json.load(f)
+    #     if json_data["metrics"]["f1"] < f1:
+    #         best = True
+    # except:
+    #     best = True
+
+    # if best:
+    #     best_weights = model.get_weights()
+    #     np.save(f"models/{args.dataset}/best_model.npy", best_weights)
+
+    #     data = {
+    #         "config": vars(args),
+    #         "metrics": {
+    #             "accuracy": accuracy,
+    #             "precision": precision,
+    #             "recall": recall,
+    #             "f1": f1
+    #         }
+    #     }
+
+    #     with open(f"models/{args.dataset}/best_config.json", "w") as f:
+    #         json.dump(data, f, indent=4)
+        
+    #     print("Model saved as best_model.npy")
 
     print("Training complete!")
 
