@@ -1,23 +1,10 @@
-"""
-Data Loading and Preprocessing
-Handles MNIST and Fashion-MNIST datasets
-"""
-
 
 import numpy as np
 from tensorflow.keras.datasets import mnist, fashion_mnist
 
 
 def load_data(dataset):
-    """
-    Load and preprocess MNIST or Fashion-MNIST.
 
-    Args:
-        dataset (str): 'mnist' or 'fashion_mnist'
-
-    Returns:
-        X_train, y_train, X_test, y_test
-    """
     if dataset == "mnist":
         (X_train, y_train), (X_test, y_test) = mnist.load_data()
 
@@ -27,11 +14,11 @@ def load_data(dataset):
     else:
         raise ValueError("Unsupported dataset")
 
-    # Normalize
+ 
     X_train = X_train.astype(np.float32) / 255.0
     X_test = X_test.astype(np.float32) / 255.0
 
-    # Flatten images (28x28 -> 784)
+ 
     X_train = X_train.reshape(X_train.shape[0], -1)
     X_test = X_test.reshape(X_test.shape[0], -1)
 

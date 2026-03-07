@@ -1,8 +1,3 @@
-"""
-Optimizer Implementations
-Includes: SGD, Momentum, NAG, RMSProp
-Supports Weight Decay (L2 Regularization)
-"""
 
 import numpy as np
 

@@ -1,15 +1,8 @@
-"""
-Activation Functions and Their Derivatives
-Implements: ReLU, Sigmoid, Tanh, Softmax
-"""
-
 import numpy as np
 
 class Activation:
     def __init__(self, activation):
-        """
-        activation: 'relu', 'sigmoid', or 'tanh'
-        """
+
         self.activation = activation
 
     def forward(self, Z):
@@ -28,9 +21,7 @@ class Activation:
             raise ValueError("Unsupported activation")
 
     def backward(self, dA):
-        """
-        dA: gradient w.r.t activation output
-        """
+   
         if self.activation == "relu":
             dZ = dA * (self.Z > 0)
 
@@ -45,13 +36,3 @@ class Activation:
         return dZ
     
 
-
-# Z = np.array([[-1.0, 0.0, 2.0]])
-# dA = np.ones_like(Z)
-
-# relu = Activation("relu")
-# A = relu.forward(Z)
-# dZ = relu.backward(dA)
-
-# print(A)   # [0, 0, 2]
-# print(dZ)  # [0, 0, 1]

@@ -1,6 +1,6 @@
 {
     "config": {
-        "dataset": "fashion_mnist",
+        "dataset": "mnist",
         "epochs": 10,
         "batch_size": 32,
         "loss": "cross_entropy",
@@ -19,9 +19,9 @@
         "model_save_path": "models/model.npy"
     },
     "metrics": {
-        "accuracy": 0.7285,
-        "precision": 0.7277467646232131,
-        "recall": 0.7299565258410136,
-        "f1": 0.7288499653217808
+        "accuracy": 0.8394166666666667,
+        "precision": 0.8383559887669112,
+        "recall": 0.836819066004387,
+        "f1": 0.8375868173454335
     }
 }

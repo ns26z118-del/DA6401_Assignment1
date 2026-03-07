@@ -1,9 +1,3 @@
-"""
-Main Training Script
-Entry point for training neural networks with command-line arguments
-"""
-
-
 import argparse
 import os
 import pickle
@@ -70,16 +64,31 @@ def parse_arguments():
 
     return parser.parse_args()
 
+
+
+
+def log_sample_images(X, y):
+    import wandb
+    from collections import defaultdict
+
+    table = wandb.Table(columns=["image", "label"])
+    class_count = defaultdict(int)
+
+    for img, label in zip(X, y):
+        if class_count[label] < 5:
+            image = img.reshape(28, 28)  # MNIST / FashionMNIST
+            table.add_data(wandb.Image(image), int(label))
+            class_count[label] += 1
+
+        if all(v >= 5 for v in class_count.values()):
+            break
+
+    wandb.log({"sample_images_per_class": table})
+
 def main():
-    """
-    Main training function.
-    """
+
     args = parse_arguments()
 
-    # Expand hidden layer sizes
-    # args.hidden_size = [args.num_neurons] * args.hidden_layers
-
-    # Initialize W&B
     wandb.init(
         project=args.wandb_project,
         config=vars(args)
@@ -90,6 +99,10 @@ def main():
 
     # Split train and val datasets
     X_train, X_val, y_train, y_val = train_test_split(X_train_full, y_train_full, test_size=0.2, random_state=42)
+
+
+    # Log dataset samples to W&B
+    log_sample_images(X_train_full, y_train_full)
 
     # Initialize model
     model = NeuralNetwork(args)
@@ -102,13 +115,11 @@ def main():
         batch_size=args.batch_size
     )
 
-    # Evaluate
-    # accuracy = model.evaluate(X_test, y_test)
     accuracy, precision, recall, f1, loss = model.evaluate(X_val, y_val)
     print(f"Validation Accuracy: {accuracy:.4f}")
     print(f"Validation f1-score: {f1:.4f}")
 
-    # wandb.log({"test_accuracy": accuracy})
+
     wandb.log({
     "test_accuracy": accuracy,
     "test_loss": loss,
@@ -117,39 +128,6 @@ def main():
     "f1": f1
     })
 
-    # Save model (relative path only)
-    # os.makedirs(os.path.dirname(args.model_save_path), exist_ok=True)
-    # with open(args.model_save_path, "wb") as f:
-    #     pickle.dump(model, f)
-
-    # Save model weights as .npy
-
-    # best_f1 = -1
-    # if f1 > best_f1:
-    # best_f1 = f1
-
-    # weights = []
-    # for layer in model.layers:
-    #     if hasattr(layer, "W"):
-    #         weights.append(layer.W)
-    #         weights.append(layer.b)
-
-    # weights = np.array(weights, dtype=object)
-    # np.save("best_model.npy", weights)
-
-    # print("New best model saved!")
-
-
-    # weights = []
-
-    # for layer in model.layers:
-    #     if hasattr(layer, "W"):
-    #         weights.append(layer.W)
-    #         weights.append(layer.b)
-
-    # weights = np.array(weights, dtype=object)
-
-    # np.save("best_model.npy", weights)
     best = False
     os.makedirs(f"models/{args.dataset}", exist_ok=True)
     try:
@@ -186,78 +164,3 @@ if __name__ == "__main__":
     main()
 
 
-# old parser 
-
-# def parse_arguments():
-#     """
-#     Parse command-line arguments.
-#     """
-#     parser = argparse.ArgumentParser(description="Train a neural network")
-
-#     parser.add_argument("--dataset", type=str, default="mnist",
-#                         choices=["mnist", "fashion_mnist"])
-
-#     parser.add_argument("--epochs", type=int, default=10)
-
-#     parser.add_argument("--batch_size", type=int, default=32)
-
-#     parser.add_argument("--learning_rate", type=float, default=0.001)
-
-#     parser.add_argument("--optimizer", type=str, default="sgd",
-#                         choices=["sgd", "momentum", "nag", "rmsprop", "adam", "nadam"])
-
-#     parser.add_argument("--hidden_layers", type=int, default=1)
-
-#     parser.add_argument("--num_neurons", type=int, default=128)
-
-#     parser.add_argument("--activation", type=str, default="relu",
-#                         choices=["relu", "sigmoid", "tanh"])
-
-#     parser.add_argument("--loss", type=str, default="cross_entropy",
-#                         choices=["cross_entropy", "mse"])
-
-#     parser.add_argument("--weight_init", type=str, default="xavier")
-
-#     parser.add_argument("--wandb_project", type=str, default="da6401-assignment-1")
-
-#     parser.add_argument("--model_save_path", type=str, default="models/model.pkl")
-
-#     return parser.parse_args()
-
-
-# import argparse
-
-# def parse_arguments():
-#     """
-#     Parse command-line arguments.
-    
-#     TODO: Implement argparse with the following arguments:
-#     - dataset: 'mnist' or 'fashion_mnist'
-#     - epochs: Number of training epochs
-#     - batch_size: Mini-batch size
-#     - learning_rate: Learning rate for optimizer
-#     - optimizer: 'sgd', 'momentum', 'nag', 'rmsprop', 'adam', 'nadam'
-#     - hidden_layers: List of hidden layer sizes
-#     - num_neurons: Number of neurons in hidden layers
-#     - activation: Activation function ('relu', 'sigmoid', 'tanh')
-#     - loss: Loss function ('cross_entropy', 'mse')
-#     - weight_init: Weight initialization method
-#     - wandb_project: W&B project name
-#     - model_save_path: Path to save trained model (do not give absolute path, rather provide relative path)
-#     """
-#     parser = argparse.ArgumentParser(description='Train a neural network')
-    
-#     return parser.parse_args()
-
-
-# def main():
-#     """
-#     Main training function.
-#     """
-#     args = parse_arguments()
-    
-#     print("Training complete!")
-
-
-# if __name__ == '__main__':
-#     main()
