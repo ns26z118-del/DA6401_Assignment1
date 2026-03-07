@@ -12,7 +12,7 @@ import numpy as np
 import json
 from ann.neural_network import NeuralNetwork
 from utils.data_loader import load_data
-
+from sklearn.model_selection import train_test_split
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Train a neural network")
@@ -86,7 +86,10 @@ def main():
     )
 
     # Load dataset
-    X_train, y_train, X_test, y_test = load_data(args.dataset)
+    X_train_full, y_train_full, _, _ = load_data(args.dataset)
+
+    # Split train and val datasets
+    X_train, X_val, y_train, y_val = train_test_split(X_train_full, y_train_full, test_size=0.2, random_state=42)
 
     # Initialize model
     model = NeuralNetwork(args)
@@ -101,8 +104,9 @@ def main():
 
     # Evaluate
     # accuracy = model.evaluate(X_test, y_test)
-    accuracy, loss, precision, recall, f1 = model.evaluate(X_test, y_test)
-    print(f"Test Accuracy: {accuracy:.4f}")
+    accuracy, precision, recall, f1, loss = model.evaluate(X_val, y_val)
+    print(f"Validation Accuracy: {accuracy:.4f}")
+    print(f"Validation f1-score: {f1:.4f}")
 
     # wandb.log({"test_accuracy": accuracy})
     wandb.log({
@@ -146,14 +150,34 @@ def main():
     # weights = np.array(weights, dtype=object)
 
     # np.save("best_model.npy", weights)
+    best = False
+    os.makedirs(f"models/{args.dataset}", exist_ok=True)
+    try:
+        with open(f"models/{args.dataset}/best_config.json", "r") as f:
+            json_data = json.load(f)
+        if json_data["metrics"]["f1"] < f1:
+            best = True
+    except:
+        best = True
 
-    best_weights = model.get_weights()
-    np.save("src/best_model.npy", best_weights)
+    if best:
+        best_weights = model.get_weights()
+        np.save(f"models/{args.dataset}/best_model.npy", best_weights)
 
-    print("Model saved as best_model.npy")
+        data = {
+            "config": vars(args),
+            "metrics": {
+                "accuracy": accuracy,
+                "precision": precision,
+                "recall": recall,
+                "f1": f1
+            }
+        }
 
-    with open("src/best_config.json", "w") as f:
-        json.dump(vars(args), f, indent=4)
+        with open(f"models/{args.dataset}/best_config.json", "w") as f:
+            json.dump(data, f, indent=4)
+        
+        print("Model saved as best_model.npy")
 
     print("Training complete!")
 

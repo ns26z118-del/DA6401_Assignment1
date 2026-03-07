@@ -9,7 +9,7 @@ import wandb
 from ann.neural_layer import NeuralLayer
 from ann.activations import Activation
 from ann.objective_functions import MSELoss, CrossEntropyLoss
-from ann.optimizers import SGD, Momentum, NAG, RMSProp, Adam, Nadam
+from ann.optimizers import SGD, Momentum, NAG, RMSProp#, Adam, Nadam
 
 class NeuralNetwork:
     """
@@ -71,11 +71,11 @@ class NeuralNetwork:
         elif cli_args.optimizer == "rmsprop":
             self.optimizer = RMSProp(lr, wd)
 
-        elif cli_args.optimizer == "adam":
-            self.optimizer = Adam(lr, wd)
+        # elif cli_args.optimizer == "adam":
+        #     self.optimizer = Adam(lr, wd)
 
-        elif cli_args.optimizer == "nadam":
-            self.optimizer = Nadam(lr, wd)
+        # elif cli_args.optimizer == "nadam":
+        #     self.optimizer = Nadam(lr, wd)
 
         else:
             raise ValueError("Unsupported optimizer")
@@ -210,7 +210,7 @@ class NeuralNetwork:
         recall = np.mean(recall_list)
         f1 = 2 * precision * recall / (precision + recall + 1e-8)
 
-        return accuracy, loss, precision, recall, f1
+        return accuracy, precision, recall, f1, loss
 
 
 

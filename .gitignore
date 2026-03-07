@@ -3,7 +3,7 @@ __pycache__/
 *.pyc
 
 # Model files
-*.pkl
+*.npy
 
 # wandb logs
 wandb/
