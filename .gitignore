@@ -1,3 +1,10 @@
-src/models/model.pkl
-src/wandb/
+# Python cache
+__pycache__/
+*.pyc
+
+# Model files
+*.pkl
+
+# wandb logs
 wandb/
+src/wandb/
