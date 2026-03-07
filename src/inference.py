@@ -1,260 +1,96 @@
+"""
+Inference Script
+Evaluate trained models on test sets
+"""
 import argparse
-import ast
 import numpy as np
-from utils.data_loader import load_data
 from ann.neural_network import NeuralNetwork
-from ann.objective_functions import MSELoss
-
+from utils.data_loader import load_dataset
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
+import os
+import matplotlib.pyplot as plt
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Run inference on test set")
+    parser = argparse.ArgumentParser()
 
-    parser.add_argument("--model_path", type=str, required=True)
-
-    parser.add_argument("-d", "--dataset",
-                        choices=["mnist", "fashion_mnist"],
-                        default="mnist")
-
-    parser.add_argument("-e", "--epochs", type=int, default=10)
-
-    parser.add_argument("-b", "--batch_size", type=int, default=64)   # best config
-
-    parser.add_argument("-l", "--loss",
-                        choices=["mse", "cross_entropy"],
-                        default="cross_entropy")
-
-    parser.add_argument("-o", "--optimizer",
-                        choices=["sgd", "momentum", "nag", "rmsprop"],
-                        default="rmsprop")               # best config
-
-    parser.add_argument("-lr", "--learning_rate", type=float, default=0.005)  # best config
-
-    parser.add_argument("-wd", "--weight_decay", type=float, default=0.0001)  # best config
-
-    parser.add_argument("-nhl", "--num_layers", type=int, default=2)          # best config
-
-    parser.add_argument("-sz", "--hidden_size",
-                        type=str,                        # matches train.py
-                        default="[128]")                 # best config
-
-    parser.add_argument("-a", "--activation",
-                        choices=["relu", "sigmoid", "tanh"],
-                        default="tanh")                  # best config
-
-    parser.add_argument("-wi", "--weight_init",
-                        choices=["random", "xavier"],
-                        default="xavier")
-
-    parser.add_argument("-wp", "--wandb_project",
-                        default="da6401-assignment-1")
-
-    parser.add_argument("--model_save_path", default="models/model.npy")
+    parser= argparse.ArgumentParser()
+    parser.add_argument("-d", "--dataset", type=str, choices=["mnist", "fashion_mnist"], default="mnist")
+    parser.add_argument("-e", "--epochs", type=int, default=20)
+    parser.add_argument("-b", "--batch_size", type=int, default=64)
+    parser.add_argument("-lr", "--learning_rate", type=float, default=0.001)
+    parser.add_argument("-wd", "--weight_decay", type=float, default=0.0001)
+    parser.add_argument("-l", "--loss", type=str, choices=["mse", "cross_entropy"], default="cross_entropy")
+    parser.add_argument("-o", "--optimizer", type=str, choices=["sgd", "momentum", "nag", "rmsprop"], default="rmsprop")
+    parser.add_argument("-nhl", "--num_layers", type=int, default=2)
+    parser.add_argument("-sz", "--hidden_size", nargs="+", type=int, default=[96, 96])
+    parser.add_argument("-a", "--activation", type=str, choices=["sigmoid", "tanh", "relu"], default="sigmoid")
+    parser.add_argument("-wi", "--weight_init", type=str, choices=["random", "xavier"], default="xavier")
+    parser.add_argument("-wp", "--wandb_project", type=str, default="da6401")
+    parser.add_argument("-m", "--model_path", type=str)
 
     return parser.parse_args()
 
+def get_model_path(args):
+    if args.model_path:
+        return args.model_path
 
-def load_model(model_path, model):
+    base_name = f"{args.dataset}_epochs{args.epochs}_bs{args.batch_size}_lr{args.learning_rate}_opt_{args.optimizer}_hl{'-'.join(map(str, args.hidden_size))}_act_{args.activation}_winit_{args.weight_init}"
+    folder = os.path.join("..", "models")
+    save_path = os.path.join(folder, f"{base_name}.npy")
+
+    if os.path.exists(save_path):
+        return save_path
+
+    i = 1
+    while True:
+        numbered_path = save_path.replace(".npy", f"_{i}.npy")
+        if os.path.exists(numbered_path):
+            i += 1
+        else:
+            break
+    if i > 1:
+        return save_path.replace(".npy", f"_{i-1}.npy")
+
+    print(f"No model found for given hyperparameters in {folder}")
+
+def load_model(model_path):
     data = np.load(model_path, allow_pickle=True).item()
-    model.set_weights(data)
-    return model
-
+    return data
 
 def evaluate_model(model, X_test, y_test):
     logits = model.forward(X_test)
-    y_pred = np.argmax(logits, axis=1)
+    preds = np.argmax(logits, axis=1)
 
-    accuracy = np.mean(y_pred == y_test)
-
-
-    if isinstance(model.loss_fn, MSELoss):
-        y_input = np.eye(10)[y_test]
-    else:
-        y_input = y_test
-    loss = model.loss_fn.forward(logits, y_input)
-
-    num_classes = len(np.unique(y_test))
-    precision_list, recall_list, f1_list = [], [], []
-
-    for cls in range(num_classes):
-        tp = np.sum((y_pred == cls) & (y_test == cls))
-        fp = np.sum((y_pred == cls) & (y_test != cls))
-        fn = np.sum((y_pred != cls) & (y_test == cls))
-
-        precision = tp / (tp + fp + 1e-8)
-        recall = tp / (tp + fn + 1e-8)
-        f1 = 2 * precision * recall / (precision + recall + 1e-8)
-
-        precision_list.append(precision)
-        recall_list.append(recall)
-        f1_list.append(f1)
-
-    return {
-        "logits": logits,
-        "loss": loss,
-        "accuracy": accuracy,
-        "precision": float(np.mean(precision_list)),
-        "recall": float(np.mean(recall_list)),
-        "f1": float(np.mean(f1_list))
+    metrics = {
+        "accuracy": accuracy_score(y_test, preds),
+        "precision": precision_score(y_test, preds, average="macro", zero_division=0),
+        "recall": recall_score(y_test, preds, average="macro", zero_division=0),
+        "f1": f1_score(y_test, preds, average="macro", zero_division=0)
     }
 
+    cm = confusion_matrix(y_test, preds, labels=np.arange(10))
+
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=np.arange(10))
+    
+    disp.plot(cmap=plt.cm.Blues)
+    plt.title("Confusion Matrix")
+    plt.show()
+
+    return metrics
 
 def main():
     args = parse_arguments()
 
-    # Match train.py hidden_size parsing
-    if isinstance(args.hidden_size, str):
-        args.hidden_size = ast.literal_eval(args.hidden_size)
-
-    _, _, X_test, y_test = load_data(args.dataset)
+    X_train, y_train, X_val, y_val, X_test, y_test = load_dataset(args.dataset) 
+    model_path = get_model_path(args)
 
     model = NeuralNetwork(args)
-    model = load_model(args.model_path, model)
+    weights = load_model(model_path)
+    model.set_weights(weights)
 
     results = evaluate_model(model, X_test, y_test)
-
-    print("Evaluation Results:")
-    for k, v in results.items():
-        if k != "logits":
-            print(f"{k}: {v}")
-
-    return results
-
+    print(f"Model evaluated= {model_path}")
+    print(results)
 
 if __name__ == "__main__":
     main()
-
-
-# import argparse
- 
-# import numpy as np
-
-# from utils.data_loader import load_data
-# from ann.neural_network import NeuralNetwork
-# from ann.objective_functions import MSELoss, CrossEntropyLoss
-
-
-# def parse_arguments():
-#     parser = argparse.ArgumentParser(description="Run inference on test set")
-
-#     parser.add_argument("--model_path", type=str, required=True)
-
-#     parser.add_argument("-d", "--dataset",
-#                         choices=["mnist", "fashion_mnist"],
-#                         default="mnist")
-
-#     parser.add_argument("-b", "--batch_size",
-#                         type=int,
-#                         default=32)
-
-#     parser.add_argument("-l", "--loss",
-#                         choices=["mse", "cross_entropy"],
-#                         default="cross_entropy")
-
-#     parser.add_argument("-o", "--optimizer",
-#                         choices=["sgd", "momentum", "nag", "rmsprop"], # Addnl: "adam", "nadam"
-#                         default="sgd")
-
-#     parser.add_argument("-lr", "--learning_rate",
-#                         type=float,
-#                         default=0.001)
-
-#     parser.add_argument("-wd", "--weight_decay",
-#                         type=float,
-#                         default=0.0)
-
-#     parser.add_argument("-nhl", "--num_layers",
-#                         type=int,
-#                         default=1)
-
-#     parser.add_argument("-sz", "--hidden_size",
-#                         nargs="+",
-#                         type=int,
-#                         default="[128]")
-
-#     parser.add_argument("-a", "--activation",
-#                         choices=["relu", "sigmoid", "tanh"],
-#                         default="relu")
-
-#     parser.add_argument("-wi", "--weight_init",
-#                         choices=["random", "xavier"],
-#                         default="xavier")
-
-#     return parser.parse_args()
-
-
-# def load_model(model_path, model):
-#     data = np.load(model_path, allow_pickle=True).item()
-#     model.set_weights(data)
-#     return model
-
-# def evaluate_model(model, X_test, y_test):
-#     """
-#     Evaluate model on test data.
-
-#     Returns Dictionary:
-#     logits, loss, accuracy, f1, precision, recall
-#     """
-#     logits = model.forward(X_test)
-#     y_pred = np.argmax(logits, axis=1)
-
-#     # Accuracy
-#     accuracy = np.mean(y_pred == y_test)
-
-#     # Loss
-#     if isinstance(model.loss_fn, MSELoss):
-#         y_input = np.eye(10)[y_test]
-#     else:
-#         y_input = y_test
-#     loss = model.loss_fn.forward(logits, y_test)
-
-#     # Precision, Recall, F1
-#     num_classes = len(np.unique(y_test))
-#     precision_list, recall_list, f1_list = [], [], []
-
-#     for cls in range(num_classes):
-#         tp = np.sum((y_pred == cls) & (y_test == cls))
-#         fp = np.sum((y_pred == cls) & (y_test != cls))
-#         fn = np.sum((y_pred != cls) & (y_test == cls))
-
-#         precision = tp / (tp + fp + 1e-8)
-#         recall = tp / (tp + fn + 1e-8)
-#         f1 = 2 * precision * recall / (precision + recall + 1e-8)
-
-#         precision_list.append(precision)
-#         recall_list.append(recall)
-#         f1_list.append(f1)
-
-#     return {
-#         "logits": logits,
-#         "loss": loss,
-#         "accuracy": accuracy,
-#         "precision": float(np.mean(precision_list)),
-#         "recall": float(np.mean(recall_list)),
-#         "f1": float(np.mean(f1_list))
-#     }
-
-
-# def main():
-#     args = parse_arguments()
-
-  
-#     _, _, X_test, y_test = load_data(args.dataset)
-
-    
-#     model = NeuralNetwork(args) 
-
- 
-#     model = load_model(args.model_path, model)
-
-     
-#     results = evaluate_model(model, X_test, y_test)
-
-#     print("Evaluation Results:")
-#     for k, v in results.items():
-#         if k != "logits":
-#             print(f"{k}: {v}")
-
-#     return results
-
-# if __name__ == "__main__":
-#     main()

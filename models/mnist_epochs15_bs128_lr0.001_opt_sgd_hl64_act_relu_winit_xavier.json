@@ -1,0 +1,17 @@
+{
+    "dataset": "mnist",
+    "epochs": 15,
+    "batch_size": 128,
+    "learning_rate": 0.001,
+    "weight_decay": 0,
+    "loss": "mse",
+    "optimizer": "sgd",
+    "num_layers": 1,
+    "hidden_size": [
+        64
+    ],
+    "activation": "relu",
+    "weight_init": "xavier",
+    "wandb_project": "da6401",
+    "model_save_path": null
+}

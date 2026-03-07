@@ -1,25 +1,37 @@
-
+"""
+Data Loading and Preprocessing
+Handles MNIST and Fashion-MNIST datasets
+"""
 import numpy as np
-from tensorflow.keras.datasets import mnist, fashion_mnist
+from keras.datasets import mnist, fashion_mnist
+from sklearn.model_selection import train_test_split
 
+def load_dataset(name):
+    test_size = 0.2
+    val_size = 0.2
+    random_state = 42
 
-def load_data(dataset):
+    if name == "mnist":
+        (X, y), _ = mnist.load_data()
+    elif name == "fashion_mnist":
+        (X, y), _ = fashion_mnist.load_data()
 
-    if dataset == "mnist":
-        (X_train, y_train), (X_test, y_test) = mnist.load_data()
+    X = X.reshape(X.shape[0], 784) / 255.0
 
-    elif dataset == "fashion_mnist":
-        (X_train, y_train), (X_test, y_test) = fashion_mnist.load_data()
+    #train test split
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y,
+        test_size=test_size,
+        random_state=random_state,
+        stratify=y
+    )
 
-    else:
-        raise ValueError("Unsupported dataset")
+    #train validation split
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_train, y_train,
+        test_size=val_size,
+        random_state=random_state,
+        stratify=y_train
+    )
 
- 
-    X_train = X_train.astype(np.float32) / 255.0
-    X_test = X_test.astype(np.float32) / 255.0
-
- 
-    X_train = X_train.reshape(X_train.shape[0], -1)
-    X_test = X_test.reshape(X_test.shape[0], -1)
-
-    return X_train, y_train, X_test, y_test
+    return X_train, y_train, X_val, y_val, X_test, y_test

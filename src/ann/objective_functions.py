@@ -1,43 +1,39 @@
-
-
+"""
+Loss/Objective Functions and Their Derivatives
+Implements: Cross-Entropy, Mean Squared Error (MSE)
+"""
 import numpy as np
+from .activations import softmax
 
-class MSELoss:
-    def forward(self, y_pred, y_true):
+def cross_entropy_loss(logits, y):
+    probs= softmax(logits)
+    m= y.shape[0]
+    loss= -np.log(probs[range(m), y])
+    return np.mean(loss)
 
-        self.y_pred = y_pred
-        self.y_true = y_true
-        loss = np.mean((y_pred - y_true) ** 2)
-        return loss
+def mse_loss(pred, y):
+    if y.ndim == 1:
+        y = np.eye(pred.shape[1])[y]
+    return np.mean((pred - y) ** 2)
 
-    def backward(self):
+def cross_entropy_grad(y_true, logits):
 
-        # N = self.y_true.shape[0]
-        # return 2 * (self.y_pred - self.y_true) / N
-        return 2 * (self.y_pred - self.y_true) / (self.y_true.shape[0] * self.y_true.shape[1])
-
-
-class CrossEntropyLoss:
-    def forward(self, logits, y_true):
-
-        logits = logits - np.max(logits, axis=1, keepdims=True)
-
-        exp_scores = np.exp(logits)
-        self.probs = exp_scores / np.sum(exp_scores, axis=1, keepdims=True)
-
-        self.y_true = y_true
-        N = logits.shape[0]
-
-        correct_logprobs = -np.log(self.probs[np.arange(N), y_true])
-        loss = np.mean(correct_logprobs)
-        return loss
-
-    def backward(self):
-
-        N = self.y_true.shape[0]
-        dZ = self.probs.copy()
-        dZ[np.arange(N), self.y_true] -= 1
-        dZ /= N
-        return dZ
+    n = logits.shape[0]
     
+    shift_logits = logits - np.max(logits, axis=1, keepdims=True)
+    exps = np.exp(shift_logits)
+    probs = exps / np.sum(exps, axis=1, keepdims=True)
+    
+    y_true = y_true.astype(int).flatten()
+    y_one_hot = np.zeros_like(probs)
+    y_one_hot[np.arange(n), y_true] = 1
+    
+    return (probs - y_one_hot) / n
 
+def mse_grad(y_true, logits):
+    n = logits.shape[0]
+    y_true = y_true.astype(int).flatten()
+    y_one_hot = np.zeros_like(logits)
+    y_one_hot[np.arange(n), y_true] = 1
+    
+    return 2 * (logits - y_one_hot) / n
