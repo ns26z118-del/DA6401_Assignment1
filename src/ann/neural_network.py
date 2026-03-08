@@ -17,10 +17,13 @@ class NeuralNetwork:
         n= 784 #hardcoded since MNIST images are 28x28
 
         for h in cli_options.hidden_size:
-            self.layers.append(neural_layer(n, h, cli_options.weight_init))
+            # BUG FIX: was passing weight_init into the activation slot.
+            # Correct order: (n_input, n_output, activation, weight_init)
+            self.layers.append(neural_layer(n, h, cli_options.activation, cli_options.weight_init))
             n= h
 
-        self.layers.append(neural_layer(n, 10, cli_options.weight_init))
+        # Output layer: linear activation (logits), softmax applied in loss
+        self.layers.append(neural_layer(n, 10, "linear", cli_options.weight_init))
         self.activation= cli_options.activation
         self.loss= cli_options.loss
 
@@ -66,14 +69,6 @@ class NeuralNetwork:
             if i != len(self.layers) - 1:
                 out= self.activate(z)
                 self.activations.append(out)
-                zero_fraction = np.mean(out == 0)
-                mean_activation = np.mean(out)
-                #wandb.log({
-                #    f"layer{i+1}_zero_fraction": zero_fraction,
-                #    f"layer{i+1}_activation_mean": np.mean(out),
-                #    f"layer{i+1}_activation_histogram": wandb.Histogram(out)
-                #})
-
             else:
                 out= z
 
@@ -130,9 +125,14 @@ class NeuralNetwork:
     def train(self, X_train, y_train, X_val=None, y_val=None, epochs=1, batch_size=32):
 
         n= X_train.shape[0]
-        num_batches= n//batch_size
+        num_batches= max(n//batch_size, 1)
 
         for epoch in range(epochs):
+            # Shuffle training data each epoch
+            indices = np.random.permutation(n)
+            X_train = X_train[indices]
+            y_train = y_train[indices]
+
             epoch_loss = 0
             for i in range(0, n, batch_size):
                 xb= X_train[i:i + batch_size]

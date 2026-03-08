@@ -48,7 +48,9 @@ def main():
     wandb.init(project=args.wandb_project, config=vars(args))
 
     model= NeuralNetwork(args)
-    model.train(X_train, y_train, epochs=args.epochs, batch_size=args.batch_size)
+
+    # BUG FIX: was not passing X_val/y_val — validation metrics were never logged
+    model.train(X_train, y_train, X_val=X_val, y_val=y_val, epochs=args.epochs, batch_size=args.batch_size)
 
     acc= model.evaluate(X_test, y_test)
     print(f"Test Accuracy: {acc:.4f}")
