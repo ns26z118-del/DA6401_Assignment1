@@ -6,4 +6,4 @@
   https://github.com/ns26z118-del/DA6401_Assignment1.git
 
 - **Weights & Biases Experiment Dashboard:**
-  https://api.wandb.ai/links/ns26z118-indian-institute-of-technology-madras/iufx90r5
+  https://wandb.ai/ns26z118-indian-institute-of-technology-madras/DA6401_ns26z118/reports/DA6401-Assignment-1-Neural-Network-Analysis--VmlldzoxNjE0MTIzOA?accessToken=5js7dltfshsvb60oygmht0shchwg1gptim8trbr205j6vtjf8bhcajn3ajl330q2

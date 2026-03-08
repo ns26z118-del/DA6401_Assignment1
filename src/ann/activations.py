@@ -1,7 +1,4 @@
-"""
-Activation Functions and Their Derivatives
-Implements: ReLU, Sigmoid, Tanh, Softmax
-"""
+
 import numpy as np
 
 def relu(x):

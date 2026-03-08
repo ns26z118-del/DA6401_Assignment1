@@ -1,7 +1,4 @@
-"""
-Neural Layer Implementation
-Handles weight initialization, forward pass, and gradient computation
-"""
+
 import numpy as np
 
 class neural_layer:

@@ -9,7 +9,7 @@ from utils.data_loader import load_dataset
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
 import os
 import matplotlib
-matplotlib.use('Agg')  # FIX: non-interactive backend, no display required
+matplotlib.use('Agg')   
 import matplotlib.pyplot as plt
 
 def parse_arguments():
@@ -73,7 +73,7 @@ def evaluate_model(model, X_test, y_test):
     disp.plot(cmap=plt.cm.Blues)
     plt.title("Confusion Matrix")
 
-    # FIX: save to file instead of plt.show() which blocks on headless servers
+ 
     plt.savefig("confusion_matrix.png", bbox_inches="tight")
     plt.close()
 

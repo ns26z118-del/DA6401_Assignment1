@@ -1,7 +1,4 @@
-"""
-Optimization Algorithms
-Implements: SGD, Momentum, Adam, Nadam, etc.
-"""
+
 import numpy as np
 
 class SGD:

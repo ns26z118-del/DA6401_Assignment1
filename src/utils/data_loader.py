@@ -1,7 +1,4 @@
-"""
-Data Loading and Preprocessing
-Handles MNIST and Fashion-MNIST datasets
-"""
+
 import numpy as np
 from keras.datasets import mnist, fashion_mnist
 from sklearn.model_selection import train_test_split
@@ -18,7 +15,7 @@ def load_dataset(name):
 
     X = X.reshape(X.shape[0], 784) / 255.0
 
-    #train test split
+   
     X_train, X_test, y_train, y_test = train_test_split(
         X, y,
         test_size=test_size,
@@ -26,7 +23,7 @@ def load_dataset(name):
         stratify=y
     )
 
-    #train validation split
+  
     X_train, X_val, y_train, y_val = train_test_split(
         X_train, y_train,
         test_size=val_size,
