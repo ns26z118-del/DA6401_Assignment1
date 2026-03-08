@@ -91,12 +91,8 @@ class NeuralNetwork:
         for i, layer in enumerate(self.layers):
             weights_dict[f"W{i}"] = layer.W
             weights_dict[f"b{i}"] = layer.b
-
-        # Save architecture config alongside weights so set_weights can
-        # rebuild layers to the correct shape regardless of how the model
-        # was constructed by the caller.
+        # Store architecture so set_weights can reconstruct regardless of caller's args
         weights_dict["__activation__"] = self.activation
-        weights_dict["__num_layers__"] = len(self.layers)
         return weights_dict
 
     def set_weights(self, weight_dict):
@@ -104,50 +100,36 @@ class NeuralNetwork:
         if isinstance(weight_dict, np.ndarray):
             weight_dict = weight_dict.item()
 
-        # Detect how many layers are in the saved weights
+        # Count layers from saved weights by shape inspection
         num_saved_layers = sum(1 for k in weight_dict if k.startswith("W") and k[1:].isdigit())
 
-        # If the saved model has a different number of layers than the current
-        # architecture, rebuild layers to match the saved weights exactly.
-        if num_saved_layers != len(self.layers):
-            saved_activation = weight_dict.get("__activation__", self.activation)
-            self.activation = saved_activation
-            self.layers = []
-            for i in range(num_saved_layers):
-                W = weight_dict[f"W{i}"]
-                b = weight_dict[f"b{i}"]
-                n_input, n_output = W.shape
-                # Last layer is always linear
-                act = saved_activation if i < num_saved_layers - 1 else "linear"
-                layer = neural_layer(n_input, n_output, act)
-                layer.W = W.copy()
-                layer.b = b.copy()
-                self.layers.append(layer)
-            return
-
-        # Architecture matches — just copy weights in
+        # Always rebuild layers from saved weight shapes to avoid architecture mismatch
         saved_activation = weight_dict.get("__activation__", self.activation)
         self.activation = saved_activation
-
-        for i, layer in enumerate(self.layers):
-            w_key = f"W{i}"
-            b_key = f"b{i}"
-            if w_key in weight_dict and b_key in weight_dict:
-                layer.W = weight_dict[w_key].copy()
-                layer.b = weight_dict[b_key].copy()
-            else:
-                print(f"Warning: {w_key} or {b_key} not found in provided weights.")
+        self.layers = []
+        for i in range(num_saved_layers):
+            W = weight_dict[f"W{i}"]
+            b = weight_dict[f"b{i}"]
+            n_input, n_output = W.shape
+            act = saved_activation if i < num_saved_layers - 1 else "linear"
+            layer = neural_layer(n_input, n_output, act)
+            layer.W = W.copy()
+            layer.b = b.copy()
+            self.layers.append(layer)
 
     def train(self, X_train, y_train, X_val=None, y_val=None, epochs=1, batch_size=32):
         n= X_train.shape[0]
         num_batches= max(n // batch_size, 1)
 
         for epoch in range(epochs):
+            # Shuffle each epoch
             indices = np.random.permutation(n)
             X_shuffled = X_train[indices]
             y_shuffled = y_train[indices]
 
             epoch_loss = 0
+            correct = 0
+
             for i in range(0, n, batch_size):
                 xb= X_shuffled[i:i + batch_size]
                 yb= y_shuffled[i:i + batch_size]
@@ -162,21 +144,24 @@ class NeuralNetwork:
                     batch_loss = mse_loss(logits, yb)
 
                 epoch_loss += batch_loss
+
+                # Accumulate correct predictions during training — avoids
+                # expensive full-dataset forward pass after each epoch
+                preds = np.argmax(logits, axis=1)
+                correct += np.sum(preds == yb)
+
                 self.backward(yb, logits)
                 self.update_weights()
 
             epoch_loss /= num_batches
+            train_acc = correct / n
 
-            train_logits = self.forward(X_train)
-            train_preds = np.argmax(train_logits, axis=1)
-            train_acc = np.mean(train_preds == y_train)
-
+            # Validation accuracy
+            val_acc = None
             if X_val is not None:
                 val_logits = self.forward(X_val)
                 val_preds = np.argmax(val_logits, axis=1)
                 val_acc = np.mean(val_preds == y_val)
-            else:
-                val_acc = None
 
             log_dict = {
                 "epoch": epoch,
