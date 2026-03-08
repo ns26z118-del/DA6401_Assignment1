@@ -8,11 +8,10 @@
     "optimizer": "rmsprop",
     "num_layers": 2,
     "hidden_size": [
-        256,
-        128,
-        64
+        96,
+        96
     ],
-    "activation": "relu",
+    "activation": "sigmoid",
     "weight_init": "xavier",
     "wandb_project": "da6401",
     "model_save_path": "src/best_model.npy"
