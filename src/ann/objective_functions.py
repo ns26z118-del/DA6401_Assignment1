@@ -1,64 +1,43 @@
-"""
-Loss/Objective Functions and Their Derivatives
-Implements: Cross-Entropy, Mean Squared Error (MSE)
-"""
 
-#objective functionss.py
+
 import numpy as np
 
-class CrossEntropy:
-    def __init__(self):
-        self.softmax_out = None
-        self.y_true = None
+class MSELoss:
+    def forward(self, y_pred, y_true):
 
-    def __call__(self, logits, y_true):
-        """
-        Computes Softmax then Cross-Entropy Loss.
-        logits: (batch_size, num_classes)
-        y_true: one-hot encoded labels (batch_size, num_classes)
-        """
-        # Numerically stable softmax (subtracting max prevents overflow in exp)
-        shifted_logits = logits - np.max(logits, axis=1, keepdims=True)
-        exps = np.exp(shifted_logits)
-        self.softmax_out = exps / np.sum(exps, axis=1, keepdims=True)
+        self.y_pred = y_pred
         self.y_true = y_true
-
-        # Clip probabilities to prevent log(0) errors
-        preds = np.clip(self.softmax_out, 1e-15, 1 - 1e-15)
-
-        # Cross-Entropy formula over the batch
-        batch_size = logits.shape[0]
-        loss = -np.sum(y_true * np.log(preds)) / batch_size
+        loss = np.mean((y_pred - y_true) ** 2)
         return loss
 
-    def derivative(self):
-        """
-        Calculates the gradient of the loss with respect to the raw logits.
-        """
-        batch_size = self.y_true.shape[0]
-        return (self.softmax_out - self.y_true) / batch_size
+    def backward(self):
+
+        # N = self.y_true.shape[0]
+        # return 2 * (self.y_pred - self.y_true) / N
+        return 2 * (self.y_pred - self.y_true) / (self.y_true.shape[0] * self.y_true.shape[1])
 
 
-class MeanSquaredError:
-    def __init__(self):
-        self.logits = None
-        self.y_true = None
+class CrossEntropyLoss:
+    def forward(self, logits, y_true):
 
-    def __call__(self, logits, y_true):
-        """
-        Computes MSE directly on logits vs one-hot labels.
-        """
-        self.logits = logits
+        logits = logits - np.max(logits, axis=1, keepdims=True)
+
+        exp_scores = np.exp(logits)
+        self.probs = exp_scores / np.sum(exp_scores, axis=1, keepdims=True)
+
         self.y_true = y_true
-        batch_size = logits.shape[0]
+        N = logits.shape[0]
 
-        # MSE formula
-        loss = np.sum((logits - y_true) ** 2) / batch_size
+        correct_logprobs = -np.log(self.probs[np.arange(N), y_true])
+        loss = np.mean(correct_logprobs)
         return loss
 
-    def derivative(self):
-        """
-        Gradient of MSE wrt logits.
-        """
-        batch_size = self.y_true.shape[0]
-        return 2 * (self.logits - self.y_true) / batch_size
+    def backward(self):
+
+        N = self.y_true.shape[0]
+        dZ = self.probs.copy()
+        dZ[np.arange(N), self.y_true] -= 1
+        dZ /= N
+        return dZ
+    
+

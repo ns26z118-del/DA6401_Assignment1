@@ -1,56 +1,70 @@
-"""
-Neural Layer Implementation
-Handles weight initialization, forward pass, and gradient computation
-"""
-#neural_layer.py
 import numpy as np
 
-class DenseLayer:
-    def __init__(self, input_dim, output_dim, weight_init='random'):
-        """
-        Initializes the dense layer.
-        weight_init: 'random' or 'xavier'
-        """
-        # Weight Initialization Strategy
-        if weight_init == 'xavier':
-            # Xavier/Glorot initialization: variance = 2 / (fan_in + fan_out)
-            limit = np.sqrt(2.0 / (input_dim + output_dim))
-            self.W = np.random.uniform(-limit, limit, (input_dim, output_dim))
+class NeuralLayer:
+    def __init__(self, in_features, out_features, weight_init):
+
+        self.in_features = in_features
+        self.out_features = out_features
+
+        if weight_init == "xavier":
+            limit = np.sqrt(6 / (in_features + out_features))
+            self.W = np.random.uniform(-limit, limit, (in_features, out_features))
+
+        elif weight_init == "random":
+            self.W = 0.01 * np.random.randn(in_features, out_features)
+
         else:
-            # Standard random initialization scaled down
-            self.W = np.random.randn(input_dim, output_dim) * 0.01
+            raise ValueError("weight_init must be 'xavier' or 'random'")
 
-        self.b = np.zeros((1, output_dim))
+ 
+        self.b = np.zeros((1, out_features))
 
-        # Mandatory variables required by the autograder
+        # Gradients 
         self.grad_W = None
         self.grad_b = None
 
-        # Cache for the forward pass input, needed for backprop
-        self.X_input = None
-
     def forward(self, X):
         """
-        Computes the forward pass: Z = X * W + b
-        X shape: (batch_size, input_dim)
+        Forward pass
+
+        Parameters
+        ----------
+        X : ndarray
+            Shape (batch_size, in_features)
+
+        Returns
+        -------
+        Z : ndarray
+            Shape (batch_size, out_features)
         """
-        self.X_input = X
-        # Compute the linear combination
-        Z = np.dot(X, self.W) + self.b
+
+        self.X = X  # Cache input for backward pass
+        Z = X @ self.W + self.b
         return Z
 
     def backward(self, dZ):
         """
-        Computes the backward pass.
-        dZ: Gradient of the loss with respect to the output Z.
-        Returns dX to be passed to the previous layer.
-        """
-        # 1. Compute gradients for weights and biases
-        # Note: We assume dZ is already averaged over the batch size by the loss function
-        self.grad_W = np.dot(self.X_input.T, dZ)
-        self.grad_b = np.sum(dZ, axis=0, keepdims=True)
+        Backward pass
 
-        # 2. Compute gradient with respect to the input X
-        dX = np.dot(dZ, self.W.T)
+        Parameters
+        ----------
+        dZ : ndarray
+            Gradient of loss w.r.t layer output
+            Shape (batch_size, out_features)
+
+        Returns
+        -------
+        dX : ndarray
+            Gradient w.r.t input (for previous layer)
+        """
+
+        batch_size = self.X.shape[0]
+
+        # Compute gradients
+        self.grad_W = (self.X.T @ dZ) / batch_size
+        self.grad_b = np.sum(dZ, axis=0, keepdims=True) / batch_size
+
+        # Gradient for previous layer
+        dX = dZ @ self.W.T
 
         return dX

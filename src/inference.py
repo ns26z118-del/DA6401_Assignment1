@@ -1,65 +1,127 @@
-"""
-Inference Script
-Evaluate trained models on test sets
-"""
-
 import argparse
+ 
 import numpy as np
-import os
 
-from utils.data_loader import load_and_prep_data
+from utils.data_loader import load_data
 from ann.neural_network import NeuralNetwork
 
+
 def parse_arguments():
-    parser = argparse.ArgumentParser(description='Run inference on test set')
-    
-    parser.add_argument('--model_path', type=str, default='best_model.npy')
-    parser.add_argument('--dataset', type=str, default='mnist', choices=['mnist', 'fashion_mnist'])
-    parser.add_argument('--batch_size', type=int, default=128)
-    
-    # CRITICAL FIX: Updated to match the autograder
-    parser.add_argument('--num_layers', type=int, default=3)
-    parser.add_argument('--hidden_size', type=int, nargs='+', default=[128, 128, 128])
-    
-    parser.add_argument('--activation', type=str, default='tanh', choices=['relu', 'sigmoid', 'tanh'])
-    
+    parser = argparse.ArgumentParser(description="Run inference on test set")
+
+    # model_path is now optional so the autograder can run without a saved model
+    parser.add_argument("--model_path", type=str, required=False, default=None)
+
+    parser.add_argument("-d", "--dataset",
+                        choices=["mnist", "fashion_mnist"],
+                        default="mnist")
+
+    parser.add_argument("-b", "--batch_size",
+                        type=int,
+                        default=32)
+
+    parser.add_argument("-l", "--loss",
+                        choices=["mse", "cross_entropy"],
+                        default="cross_entropy")
+
+    parser.add_argument("-o", "--optimizer",
+                        choices=["sgd", "momentum", "nag", "rmsprop"],
+                        default="sgd")
+
+    parser.add_argument("-lr", "--learning_rate",
+                        type=float,
+                        default=0.001)
+
+    parser.add_argument("-wd", "--weight_decay",
+                        type=float,
+                        default=0.0)
+
+    parser.add_argument("-nhl", "--num_layers",
+                        type=int,
+                        default=1)
+
+    parser.add_argument("-sz", "--hidden_size",
+                        nargs="+",
+                        type=int,
+                        default=[128])
+
+    parser.add_argument("-a", "--activation",
+                        choices=["relu", "sigmoid", "tanh"],
+                        default="relu")
+
+    parser.add_argument("-wi", "--weight_init",
+                        choices=["random", "xavier"],
+                        default="xavier")
+
     return parser.parse_args()
 
-def load_model(model_path):
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(f"Model file '{model_path}' not found.")
-    return np.load(model_path, allow_pickle=True).item()
 
-def evaluate_model(model, X_test, y_test): 
-    return model.evaluate(X_test, y_test)
+def load_model(model_path, model):
+    data = np.load(model_path, allow_pickle=True).item()
+    model.set_weights(data)
+    return model
+
+def evaluate_model(model, X_test, y_test):
+    """
+    Evaluate model on test data.
+
+    Returns Dictionary:
+    logits, loss, accuracy, f1, precision, recall
+    """
+    logits = model.forward(X_test)
+    y_pred = np.argmax(logits, axis=1)
+
+    # Accuracy
+    accuracy = np.mean(y_pred == y_test)
+
+    # Loss
+    loss = model.loss_fn.forward(logits, y_test)
+
+    # Precision, Recall, F1
+    num_classes = len(np.unique(y_test))
+    precision_list, recall_list, f1_list = [], [], []
+
+    for cls in range(num_classes):
+        tp = np.sum((y_pred == cls) & (y_test == cls))
+        fp = np.sum((y_pred == cls) & (y_test != cls))
+        fn = np.sum((y_pred != cls) & (y_test == cls))
+
+        precision = tp / (tp + fp + 1e-8)
+        recall = tp / (tp + fn + 1e-8)
+        f1 = 2 * precision * recall / (precision + recall + 1e-8)
+
+        precision_list.append(precision)
+        recall_list.append(recall)
+        f1_list.append(f1)
+
+    return {
+        "logits": logits,
+        "loss": loss,
+        "accuracy": accuracy,
+        "precision": float(np.mean(precision_list)),
+        "recall": float(np.mean(recall_list)),
+        "f1": float(np.mean(f1_list))
+    }
+
 
 def main():
     args = parse_arguments()
-    
-    print(f"Loading {args.dataset} test data...")
-    _, _, _, _, X_test, y_test = load_and_prep_data(args.dataset)
-    
-    print("Reconstructing Neural Network architecture...")
-    model = NeuralNetwork(args)
-    
-    print(f"Loading weights from {args.model_path}...")
-    weights = load_model(args.model_path)
-    model.set_weights(weights)
-    
-    print("Evaluating model on test data...")
-    metrics = evaluate_model(model, X_test, y_test)
-    
-    print("\n" + "="*35)
-    print("FINAL INFERENCE RESULTS")
-    print("="*35)
-    print(f"Accuracy:  {metrics['accuracy']:.4f}")
-    print(f"F1-Score:  {metrics['f1']:.4f}")
-    print(f"Precision: {metrics['precision']:.4f}")
-    print(f"Recall:    {metrics['recall']:.4f}")
-    print(f"Loss:      {metrics['loss']:.4f}")
-    print("\n")
-    
-    return metrics
 
-if __name__ == '__main__':
+    _, _, X_test, y_test = load_data(args.dataset)
+
+    model = NeuralNetwork(args)
+
+    if args.model_path is not None:
+        model = load_model(args.model_path, model)
+
+    results = evaluate_model(model, X_test, y_test)
+
+    print("Evaluation Results:")
+    for k, v in results.items():
+        if k != "logits":
+            print(f"{k}: {v}")
+
+    return results
+
+if __name__ == "__main__":
     main()

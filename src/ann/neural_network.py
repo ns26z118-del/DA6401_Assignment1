@@ -1,177 +1,160 @@
-"""
-Main Neural Network Model class
-Handles forward and backward propagation loops
-"""
+import math
 import numpy as np
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-
-from .neural_layer import DenseLayer
-from .activations import ReLU, Sigmoid, Tanh
-from .objective_functions import CrossEntropy, MeanSquaredError
-from .optimizers import SGD, Momentum, NAG, RMSProp, Adam, Nadam
+import wandb
+from ann.neural_layer import NeuralLayer
+from ann.activations import Activation
+from ann.objective_functions import MSELoss, CrossEntropyLoss
+from ann.optimizers import SGD, Momentum, NAG, RMSProp#, Adam, Nadam
 
 class NeuralNetwork:
-    """
-    Main model class that orchestrates the neural network training and inference.
-    """
 
     def __init__(self, cli_args):
-        def get_arg(key, default):
-            if isinstance(cli_args, dict):
-                return cli_args.get(key, default)
-            return getattr(cli_args, key, default)
-
-        self.input_dim = get_arg('input_dim', 784)
-        self.output_dim = get_arg('output_dim', 10)
-
+        self.cli_args = cli_args
         self.layers = []
-        self.activations = []
 
-        hidden_sizes = get_arg('hidden_size', [128, 128, 128])
-        if isinstance(hidden_sizes, int):
-            hidden_sizes = [hidden_sizes] * get_arg('num_layers', 1)
+        input_dim = 784
+        num_classes = 10
 
-        activation_name = get_arg('activation', 'tanh')
-        weight_init = get_arg('weight_init', 'xavier')
-        loss_name = get_arg('loss', 'cross_entropy')
+        prev_dim = input_dim
 
-        if activation_name.lower() == 'relu':
-            ActivationClass = ReLU
-        elif activation_name.lower() == 'sigmoid':
-            ActivationClass = Sigmoid
+        for hidden_dim in cli_args.hidden_size:
+            self.layers.append(
+                NeuralLayer(prev_dim, hidden_dim, cli_args.weight_init)
+            )
+            self.layers.append(
+                Activation(cli_args.activation)
+            )
+            prev_dim = hidden_dim
+
+        self.layers.append(
+            NeuralLayer(prev_dim, num_classes, cli_args.weight_init)
+        )
+
+        if cli_args.loss == "mse":
+            self.loss_fn = MSELoss()
+        elif cli_args.loss == "cross_entropy":
+            self.loss_fn = CrossEntropyLoss()
         else:
-            ActivationClass = Tanh
+            raise ValueError("Unsupported loss function")
 
-        if loss_name.lower() == 'mse':
-            self.loss_fn = MeanSquaredError()
+        lr = cli_args.learning_rate
+        wd = cli_args.weight_decay
+
+        if cli_args.optimizer == "sgd":
+            self.optimizer = SGD(lr, wd)
+        elif cli_args.optimizer == "momentum":
+            self.optimizer = Momentum(lr, wd)
+        elif cli_args.optimizer == "nag":
+            self.optimizer = NAG(lr, wd)
+        elif cli_args.optimizer == "rmsprop":
+            self.optimizer = RMSProp(lr, wd)
+        # elif cli_args.optimizer == "adam":
+        #     self.optimizer = Adam(lr, wd)
+        # elif cli_args.optimizer == "nadam":
+        #     self.optimizer = Nadam(lr, wd)
         else:
-            self.loss_fn = CrossEntropy()
-
-        opt_name = get_arg('optimizer', 'adam').lower()
-        lr = get_arg('learning_rate', 0.001)
-        weight_decay = get_arg('weight_decay', 0.0)
-
-        if opt_name == 'sgd':
-            self.optimizer = SGD(lr=lr, weight_decay=weight_decay)
-        elif opt_name == 'momentum':
-            self.optimizer = Momentum(lr=lr, weight_decay=weight_decay)
-        elif opt_name == 'nag':
-            self.optimizer = NAG(lr=lr, weight_decay=weight_decay)
-        elif opt_name == 'rmsprop':
-            self.optimizer = RMSProp(lr=lr, weight_decay=weight_decay)
-        elif opt_name == 'nadam':
-            self.optimizer = Nadam(lr=lr, weight_decay=weight_decay)
-        else:  # default: adam
-            self.optimizer = Adam(lr=lr, weight_decay=weight_decay)
-
-        current_dim = self.input_dim
-        for hidden_size in hidden_sizes:
-            self.layers.append(DenseLayer(current_dim, hidden_size, weight_init))
-            self.activations.append(ActivationClass())
-            current_dim = hidden_size
-
-        self.layers.append(DenseLayer(current_dim, self.output_dim, weight_init))
+            raise ValueError("Unsupported optimizer")
 
     def forward(self, X):
         out = X
-        for i, layer in enumerate(self.layers):
+        for layer in self.layers:
             out = layer.forward(out)
-            if i < len(self.activations):
-                out = self.activations[i].forward(out)
         return out
 
-    def backward(self, y_true, y_pred):
-        if y_true.ndim == 1 or y_true.shape[1] == 1:
-            num_classes = y_pred.shape[1]
-            y_oh = np.zeros((y_true.size, num_classes))
-            y_oh[np.arange(y_true.size), y_true.flatten().astype(int)] = 1.0
-            y_true = y_oh
+    def backward(self, logits=None, y_true=None):
+        """
+        Backward pass. Accepts optional logits and y_true so the autograder
+        can call model.backward(logits, y_true) directly. If provided, the
+        loss forward pass is re-run first to set up internal state.
+        """
+        if logits is not None and y_true is not None:
+            # Re-run loss forward to populate loss_fn internal state
+            if self.cli_args.loss == "mse":
+                y_input = np.eye(10)[y_true] if y_true.ndim == 1 else y_true
+            else:
+                y_input = y_true
+            self.loss_fn.forward(logits, y_input)
 
-        _ = self.loss_fn(y_pred, y_true)
-        d_out = self.loss_fn.derivative()
+        grad = self.loss_fn.backward()
+        grad_list = [grad]
+        for layer in reversed(self.layers):
+            grad = layer.backward(grad)
+            grad_list.append(grad)
+        return grad_list
 
-        grad_W_list = []
-        grad_b_list = []
+    def get_weights(self):
+        weights = {}
+        for i, layer in enumerate(self.layers):
+            if hasattr(layer, 'W'):
+                weights[i] = {'W': layer.W, 'b': layer.b}
+        return weights
 
-        # 1. Backprop Last Layer (No activation)
-        last_layer = self.layers[-1]
-        d_out = last_layer.backward(d_out)
-        grad_W_list.append(last_layer.grad_W)
-        grad_b_list.append(np.squeeze(last_layer.grad_b))
-
-        # 2. Backprop Hidden Layers (Activation then Dense)
-        for i in range(len(self.layers) - 2, -1, -1):
-            d_out = self.activations[i].backward(d_out)
-            d_out = self.layers[i].backward(d_out)
-            grad_W_list.append(self.layers[i].grad_W)
-            grad_b_list.append(np.squeeze(self.layers[i].grad_b))
-
-        self.grad_W = np.empty(len(grad_W_list), dtype=object)
-        self.grad_b = np.empty(len(grad_b_list), dtype=object)
-        for i, (gw, gb) in enumerate(zip(grad_W_list, grad_b_list)):
-            self.grad_W[i] = gw
-            self.grad_b[i] = gb
-
-        return self.grad_W, self.grad_b
+    def set_weights(self, weights):
+        for i, layer in enumerate(self.layers):
+            if hasattr(layer, 'W') and i in weights:
+                layer.W = weights[i]['W']
+                layer.b = weights[i]['b']
 
     def update_weights(self):
-        self.optimizer.update(self.layers)
+        self.optimizer.step(self.layers)
 
-    def train(self, X_train, y_train, epochs=1, batch_size=32):
-        if y_train.ndim == 1 or y_train.shape[1] == 1:
-            num_classes = self.output_dim
-            y_oh = np.zeros((y_train.size, num_classes))
-            y_oh[np.arange(y_train.size), y_train.flatten().astype(int)] = 1.0
-            y_train = y_oh
-
-        num_samples = X_train.shape[0]
+    def train(self, X_train, y_train, epochs, batch_size):
+        n_samples = X_train.shape[0]
 
         for epoch in range(epochs):
-            indices = np.random.permutation(num_samples)
-            X_shuffled = X_train[indices]
-            y_shuffled = y_train[indices]
+            indices = np.random.permutation(n_samples)
+            X_train = X_train[indices]
+            y_train = y_train[indices]
 
-            for i in range(0, num_samples, batch_size):
-                X_batch = X_shuffled[i:i + batch_size]
-                y_batch = y_shuffled[i:i + batch_size]
+            epoch_loss = 0.0
+
+            for i in range(0, n_samples, batch_size):
+                X_batch = X_train[i:i + batch_size]
+                y_batch = y_train[i:i + batch_size]
 
                 logits = self.forward(X_batch)
-                self.backward(y_batch, logits)
+
+                if self.cli_args.loss == "mse":
+                    y_input = np.eye(10)[y_batch]
+                else:
+                    y_input = y_batch
+                loss = self.loss_fn.forward(logits, y_input)
+                epoch_loss += loss
+
+                self.backward()
                 self.update_weights()
+
+            avg_loss = epoch_loss / math.ceil(n_samples / batch_size)
+
+            print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}")
+            wandb.log({
+                "epoch": epoch + 1,
+                "train_loss": avg_loss
+            })
 
     def evaluate(self, X, y):
         logits = self.forward(X)
-        preds = np.argmax(logits, axis=1)
+        loss = self.loss_fn.forward(logits, y)
+        y_pred = np.argmax(logits, axis=1)
+        accuracy = np.mean(y_pred == y)
 
-        num_classes = logits.shape[1]
-        y_oh = np.zeros((y.size, num_classes))
-        y_oh[np.arange(y.size), y] = 1.0
+        num_classes = np.max(y) + 1
+        precision_list = []
+        recall_list = []
 
-        loss = self.loss_fn(logits, y_oh)
-        acc = accuracy_score(y, preds)
+        for c in range(num_classes):
+            tp = np.sum((y_pred == c) & (y == c))
+            fp = np.sum((y_pred == c) & (y != c))
+            fn = np.sum((y_pred != c) & (y == c))
 
-        return {
-            "logits": logits,
-            "loss": loss,
-            "accuracy": acc,
-            "f1": f1_score(y, preds, average='macro'),
-            "precision": precision_score(y, preds, average='macro', zero_division=0),
-            "recall": recall_score(y, preds, average='macro', zero_division=0)
-        }
+            precision_c = tp / (tp + fp + 1e-8)
+            recall_c = tp / (tp + fn + 1e-8)
 
-    def get_weights(self):
-        d = {}
-        for i, layer in enumerate(self.layers):
-            d[f"W{i}"] = layer.W.copy()
-            d[f"b{i}"] = layer.b.copy()
-        return d
+            precision_list.append(precision_c)
+            recall_list.append(recall_c)
 
-    def set_weights(self, weight_dict):
-        for i, layer in enumerate(self.layers):
-            w_key = f"W{i}" if f"W{i}" in weight_dict else f"layer_{i}_W"
-            b_key = f"b{i}" if f"b{i}" in weight_dict else f"layer_{i}_b"
+        precision = np.mean(precision_list)
+        recall = np.mean(recall_list)
+        f1 = 2 * precision * recall / (precision + recall + 1e-8)
 
-            if w_key in weight_dict:
-                layer.W = weight_dict[w_key].copy()
-            if b_key in weight_dict:
-                layer.b = weight_dict[b_key].copy()
+        return accuracy, precision, recall, f1, loss
