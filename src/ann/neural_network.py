@@ -8,7 +8,7 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_sc
 from .neural_layer import DenseLayer
 from .activations import ReLU, Sigmoid, Tanh
 from .objective_functions import CrossEntropy, MeanSquaredError
-from .optimizers import SGD, Momentum, NAG, RMSProp
+from .optimizers import SGD, Momentum, NAG, RMSProp, Adam, Nadam
 
 class NeuralNetwork:
     """
@@ -21,12 +21,12 @@ class NeuralNetwork:
                 return cli_args.get(key, default)
             return getattr(cli_args, key, default)
 
-        self.input_dim = get_arg('input_dim', 784)  
+        self.input_dim = get_arg('input_dim', 784)
         self.output_dim = get_arg('output_dim', 10)
-        
-        self.layers = [] 
-        self.activations = [] 
-        
+
+        self.layers = []
+        self.activations = []
+
         hidden_sizes = get_arg('hidden_size', [128, 128, 128])
         if isinstance(hidden_sizes, int):
             hidden_sizes = [hidden_sizes] * get_arg('num_layers', 1)
@@ -47,17 +47,22 @@ class NeuralNetwork:
         else:
             self.loss_fn = CrossEntropy()
 
-        opt_name = get_arg('optimizer', 'rmsprop').lower()
+        opt_name = get_arg('optimizer', 'adam').lower()
         lr = get_arg('learning_rate', 0.001)
-        
+        weight_decay = get_arg('weight_decay', 0.0)
+
         if opt_name == 'sgd':
-            self.optimizer = SGD(lr=lr)
+            self.optimizer = SGD(lr=lr, weight_decay=weight_decay)
         elif opt_name == 'momentum':
-            self.optimizer = Momentum(lr=lr)
+            self.optimizer = Momentum(lr=lr, weight_decay=weight_decay)
         elif opt_name == 'nag':
-            self.optimizer = NAG(lr=lr)
-        else:
-            self.optimizer = RMSProp(lr=lr)
+            self.optimizer = NAG(lr=lr, weight_decay=weight_decay)
+        elif opt_name == 'rmsprop':
+            self.optimizer = RMSProp(lr=lr, weight_decay=weight_decay)
+        elif opt_name == 'nadam':
+            self.optimizer = Nadam(lr=lr, weight_decay=weight_decay)
+        else:  # default: adam
+            self.optimizer = Adam(lr=lr, weight_decay=weight_decay)
 
         current_dim = self.input_dim
         for hidden_size in hidden_sizes:
@@ -82,7 +87,7 @@ class NeuralNetwork:
             y_oh[np.arange(y_true.size), y_true.flatten().astype(int)] = 1.0
             y_true = y_oh
 
-        _ = self.loss_fn(y_pred, y_true) 
+        _ = self.loss_fn(y_pred, y_true)
         d_out = self.loss_fn.derivative()
 
         grad_W_list = []
@@ -95,7 +100,7 @@ class NeuralNetwork:
         grad_b_list.append(np.squeeze(last_layer.grad_b))
 
         # 2. Backprop Hidden Layers (Activation then Dense)
-        for i in range(len(self.layers)-2, -1, -1):
+        for i in range(len(self.layers) - 2, -1, -1):
             d_out = self.activations[i].backward(d_out)
             d_out = self.layers[i].backward(d_out)
             grad_W_list.append(self.layers[i].grad_W)
@@ -120,16 +125,16 @@ class NeuralNetwork:
             y_train = y_oh
 
         num_samples = X_train.shape[0]
-        
+
         for epoch in range(epochs):
             indices = np.random.permutation(num_samples)
             X_shuffled = X_train[indices]
             y_shuffled = y_train[indices]
 
             for i in range(0, num_samples, batch_size):
-                X_batch = X_shuffled[i:i+batch_size]
-                y_batch = y_shuffled[i:i+batch_size]
-                
+                X_batch = X_shuffled[i:i + batch_size]
+                y_batch = y_shuffled[i:i + batch_size]
+
                 logits = self.forward(X_batch)
                 self.backward(y_batch, logits)
                 self.update_weights()
@@ -137,14 +142,14 @@ class NeuralNetwork:
     def evaluate(self, X, y):
         logits = self.forward(X)
         preds = np.argmax(logits, axis=1)
-        
+
         num_classes = logits.shape[1]
         y_oh = np.zeros((y.size, num_classes))
         y_oh[np.arange(y.size), y] = 1.0
-        
+
         loss = self.loss_fn(logits, y_oh)
         acc = accuracy_score(y, preds)
-        
+
         return {
             "logits": logits,
             "loss": loss,
@@ -165,7 +170,7 @@ class NeuralNetwork:
         for i, layer in enumerate(self.layers):
             w_key = f"W{i}" if f"W{i}" in weight_dict else f"layer_{i}_W"
             b_key = f"b{i}" if f"b{i}" in weight_dict else f"layer_{i}_b"
-            
+
             if w_key in weight_dict:
                 layer.W = weight_dict[w_key].copy()
             if b_key in weight_dict:
