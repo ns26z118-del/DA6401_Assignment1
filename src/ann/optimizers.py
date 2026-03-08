@@ -2,54 +2,100 @@
 Optimization Algorithms
 Implements: SGD, Momentum, Adam, Nadam, etc.
 """
+#optimimzers.py 
 import numpy as np
 
 class SGD:
+    def __init__(self, lr=0.01, weight_decay=0.0):
+        self.lr = lr
+        self.wd = weight_decay
 
-    def __init__(self, lr):
-        self.lr= lr
+    def update(self, layers):
+        """sgd is simple gradient descent and processes batched inputs."""
+        for layer in layers:
+            if hasattr(layer, 'W'):
+                # Add L2 regularization (weight decay) to the weight gradients
+                grad_W = layer.grad_W + self.wd * layer.W
+                grad_b = layer.grad_b # We typically do not regularize biases
 
-    def update(self, layer):
-        layer.W -= self.lr * layer.grad_W
-        layer.b -= self.lr * layer.grad_b
-
+                layer.W -= self.lr * grad_W
+                layer.b -= self.lr * grad_b
 
 class Momentum:
+    def __init__(self, lr=0.01, momentum=0.9, weight_decay=0.0):
+        self.lr = lr
+        self.momentum = momentum
+        self.wd = weight_decay
+        self.velocities = {} # Store velocity for each layer
 
-    def __init__(self, lr, beta=0.9):
-        self.lr= lr
-        self.beta= beta
-        self.vW= {}
-        self.vb= {}
+    def update(self, layers):
+        for layer in layers:
+            if hasattr(layer, 'W'):
+                layer_id = id(layer)
+                if layer_id not in self.velocities:
+                    self.velocities[layer_id] = {'W': np.zeros_like(layer.W), 'b': np.zeros_like(layer.b)}
 
-    def update(self, layer, i):
-        if i not in self.vW:
-            self.vW[i]= np.zeros_like(layer.W)
-            self.vb[i]= np.zeros_like(layer.b)
+                grad_W = layer.grad_W + self.wd * layer.W
+                grad_b = layer.grad_b
 
-        self.vW[i]= self.beta * self.vW[i] + layer.grad_W
-        self.vb[i]= self.beta * self.vb[i] + layer.grad_b
+                # Update velocities
+                self.velocities[layer_id]['W'] = self.momentum * self.velocities[layer_id]['W'] + self.lr * grad_W
+                self.velocities[layer_id]['b'] = self.momentum * self.velocities[layer_id]['b'] + self.lr * grad_b
 
-        layer.W -= self.lr * self.vW[i]
-        layer.b -= self.lr * self.vb[i]
+                # Update weights
+                layer.W -= self.velocities[layer_id]['W']
+                layer.b -= self.velocities[layer_id]['b']
 
+class NAG:
+    def __init__(self, lr=0.01, momentum=0.9, weight_decay=0.0):
+        self.lr = lr
+        self.momentum = momentum
+        self.wd = weight_decay
+        self.velocities = {}
+
+    def update(self, layers):
+        """Nesterov Accelerated Gradient"""
+        for layer in layers:
+            if hasattr(layer, 'W'):
+                layer_id = id(layer)
+                if layer_id not in self.velocities:
+                    self.velocities[layer_id] = {'W': np.zeros_like(layer.W), 'b': np.zeros_like(layer.b)}
+
+                grad_W = layer.grad_W + self.wd * layer.W
+                grad_b = layer.grad_b
+
+                v_prev_W = self.velocities[layer_id]['W']
+                v_prev_b = self.velocities[layer_id]['b']
+
+                self.velocities[layer_id]['W'] = self.momentum * self.velocities[layer_id]['W'] + self.lr * grad_W
+                self.velocities[layer_id]['b'] = self.momentum * self.velocities[layer_id]['b'] + self.lr * grad_b
+
+                # Nesterov lookahead update
+                layer.W -= (self.momentum * self.velocities[layer_id]['W'] + self.lr * grad_W)
+                layer.b -= (self.momentum * self.velocities[layer_id]['b'] + self.lr * grad_b)
 
 class RMSProp:
+    def __init__(self, lr=0.001, beta=0.99, epsilon=1e-8, weight_decay=0.0):
+        self.lr = lr
+        self.beta = beta
+        self.epsilon = epsilon
+        self.wd = weight_decay
+        self.s = {} # Store moving average of squared gradients
 
-    def __init__(self, lr, beta=0.9, eps=1e-8):
-        self.lr= lr
-        self.beta= beta
-        self.eps= eps
-        self.sW= {}
-        self.sb= {}
+    def update(self, layers):
+        for layer in layers:
+            if hasattr(layer, 'W'):
+                layer_id = id(layer)
+                if layer_id not in self.s:
+                    self.s[layer_id] = {'W': np.zeros_like(layer.W), 'b': np.zeros_like(layer.b)}
 
-    def update(self, layer, i):
-        if i not in self.sW:
-            self.sW[i]= np.zeros_like(layer.W)
-            self.sb[i]= np.zeros_like(layer.b)
+                grad_W = layer.grad_W + self.wd * layer.W
+                grad_b = layer.grad_b
 
-        self.sW[i]= self.beta * self.sW[i] + (1 - self.beta) * (layer.grad_W ** 2)
-        self.sb[i]= self.beta * self.sb[i] + (1 - self.beta) * (layer.grad_b ** 2)
+                # Update moving average of squared gradients
+                self.s[layer_id]['W'] = self.beta * self.s[layer_id]['W'] + (1 - self.beta) * np.square(grad_W)
+                self.s[layer_id]['b'] = self.beta * self.s[layer_id]['b'] + (1 - self.beta) * np.square(grad_b)
 
-        layer.W -= self.lr * layer.grad_W / (np.sqrt(self.sW[i]) + self.eps)
-        layer.b -= self.lr * layer.grad_b / (np.sqrt(self.sb[i]) + self.eps)
+                # Update weights
+                layer.W -= (self.lr / (np.sqrt(self.s[layer_id]['W']) + self.epsilon)) * grad_W
+                layer.b -= (self.lr / (np.sqrt(self.s[layer_id]['b']) + self.epsilon)) * grad_b

@@ -1,31 +1,57 @@
-"""
-Activation Functions and Their Derivatives
-Implements: ReLU, Sigmoid, Tanh, Softmax
-"""
+#activations.py
 import numpy as np
 
-def relu(x):
-    return np.maximum(0, x)
+class Sigmoid:
+    def __init__(self):
+        self.out = None
 
-def relu_derivative(x):
-    return (x > 0).astype(float)
+    def forward(self, z):
+        """
+        Forward pass: f(z) = 1 / (1 + e^(-z))
+        """
+        z = np.clip(z, -500, 500) # Prevent overflow
+        self.out = 1.0 / (1.0 + np.exp(-z))
+        return self.out
 
-def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
+    def backward(self, d_out):
+        """
+        Backward pass: local derivative * incoming gradient
+        """
+        local_grad = self.out * (1.0 - self.out)
+        return d_out * local_grad
 
-def sigmoid_derivative(x):
-    s= sigmoid(x)
-    return s * (1 - s)
+class Tanh:
+    def __init__(self):
+        self.out = None
 
-def tanh(x):
-    return np.tanh(x)
+    def forward(self, z):
+        """
+        Forward pass: f(z) = tanh(z)
+        """
+        self.out = np.tanh(z)
+        return self.out
 
-def tanh_derivative(x):
-    return 1 - np.tanh(x) ** 2
+    def backward(self, d_out):
+        """
+        Backward pass: local derivative * incoming gradient
+        """
+        local_grad = 1.0 - np.power(self.out, 2)
+        return d_out * local_grad
 
-def softmax(x):
-    if x.ndim == 1:
-        x = x.reshape(1, -1)
-        
-    e = np.exp(x - np.max(x, axis=1, keepdims=True))
-    return e / np.sum(e, axis=1, keepdims=True)
+class ReLU:
+    def __init__(self):
+        self.z = None
+
+    def forward(self, z):
+        """
+        Forward pass: f(z) = max(0, z)
+        """
+        self.z = z
+        return np.maximum(0, z)
+
+    def backward(self, d_out):
+        """
+        Backward pass: local derivative * incoming gradient
+        """
+        local_grad = (self.z > 0).astype(float)
+        return d_out * local_grad

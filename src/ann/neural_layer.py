@@ -2,48 +2,55 @@
 Neural Layer Implementation
 Handles weight initialization, forward pass, and gradient computation
 """
+#neural_layer.py
 import numpy as np
 
-class neural_layer:
-
-    def __init__(self, n_input, n_output, activation="linear", weight_init="xavier"):
-        self.activation = activation
-
-        if weight_init == "xavier":
-            limit = np.sqrt(6 / (n_input + n_output))
-            self.W = np.random.uniform(-limit, limit, (n_input, n_output))
+class DenseLayer:
+    def __init__(self, input_dim, output_dim, weight_init='random'):
+        """
+        Initializes the dense layer.
+        weight_init: 'random' or 'xavier'
+        """
+        # Weight Initialization Strategy
+        if weight_init == 'xavier':
+            # Xavier/Glorot initialization: variance = 2 / (fan_in + fan_out)
+            limit = np.sqrt(2.0 / (input_dim + output_dim))
+            self.W = np.random.uniform(-limit, limit, (input_dim, output_dim))
         else:
-            self.W = np.random.randn(n_input, n_output) * 0.01
+            # Standard random initialization scaled down
+            self.W = np.random.randn(input_dim, output_dim) * 0.01
 
-        self.b = np.zeros((1, n_output))
+        self.b = np.zeros((1, output_dim))
 
-    def forward_pass(self, X):
-        self.x = X
-        self.z = np.dot(X, self.W) + self.b
+        # Mandatory variables required by the autograder
+        self.grad_W = None
+        self.grad_b = None
 
-        if self.activation == "relu":
-            self.a = np.maximum(0, self.z)
-        elif self.activation == "sigmoid":
-            self.a = 1 / (1 + np.exp(-self.z))
-        elif self.activation == "tanh":
-            self.a = np.tanh(self.z)
-        else:
-            self.a = self.z
+        # Cache for the forward pass input, needed for backprop
+        self.X_input = None
 
-        return self.a
+    def forward(self, X):
+        """
+        Computes the forward pass: Z = X * W + b
+        X shape: (batch_size, input_dim)
+        """
+        self.X_input = X
+        # Compute the linear combination
+        Z = np.dot(X, self.W) + self.b
+        return Z
 
-    def backward_pass(self, grad, batch_size=None):
-        if batch_size is None:
-            batch_size = grad.shape[0]
+    def backward(self, dZ):
+        """
+        Computes the backward pass.
+        dZ: Gradient of the loss with respect to the output Z.
+        Returns dX to be passed to the previous layer.
+        """
+        # 1. Compute gradients for weights and biases
+        # Note: We assume dZ is already averaged over the batch size by the loss function
+        self.grad_W = np.dot(self.X_input.T, dZ)
+        self.grad_b = np.sum(dZ, axis=0, keepdims=True)
 
-        if self.activation == "relu":
-            grad = grad * (self.z > 0)
-        elif self.activation == "sigmoid":
-            grad = grad * self.a * (1 - self.a)
-        elif self.activation == "tanh":
-            grad = grad * (1 - self.a**2)
+        # 2. Compute gradient with respect to the input X
+        dX = np.dot(dZ, self.W.T)
 
-        self.grad_W = np.dot(self.x.T, grad) / batch_size
-        self.grad_b = np.sum(grad, axis=0, keepdims=True) / batch_size
-
-        return np.dot(grad, self.W.T)
+        return dX
