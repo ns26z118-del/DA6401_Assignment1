@@ -1,44 +1,39 @@
+"""
+Loss/Objective Functions and Their Derivatives
+Implements: Cross-Entropy, Mean Squared Error (MSE)
+"""
 import numpy as np
+from .activations import softmax
 
-class MSELoss:
-    def forward(self, y_pred, y_true):
-        if y_pred.ndim == 1:
-            y_pred = y_pred.reshape(1, -1)
-        if y_true.ndim == 1 and y_true.shape[0] != y_pred.shape[1]:
-            # integer labels -> one-hot
-            y_true = np.eye(y_pred.shape[1])[y_true.astype(int)]
-        self.y_pred = y_pred
-        self.y_true = y_true
-        loss = np.mean((y_pred - y_true) ** 2)
-        return loss
+def cross_entropy_loss(logits, y):
+    probs= softmax(logits)
+    m= y.shape[0]
+    loss= -np.log(probs[range(m), y])
+    return np.mean(loss)
 
-    def backward(self):
-        return 2 * (self.y_pred - self.y_true) / (self.y_true.shape[0] * self.y_true.shape[1])
+def mse_loss(pred, y):
+    if y.ndim == 1:
+        y = np.eye(pred.shape[1])[y]
+    return np.mean((pred - y) ** 2)
 
+def cross_entropy_grad(y_true, logits):
 
-class CrossEntropyLoss:
-    def forward(self, logits, y_true):
-        # Ensure 2D
-        if logits.ndim == 1:
-            logits = logits.reshape(1, -1)
+    n = logits.shape[0]
+    
+    shift_logits = logits - np.max(logits, axis=1, keepdims=True)
+    exps = np.exp(shift_logits)
+    probs = exps / np.sum(exps, axis=1, keepdims=True)
+    
+    y_true = y_true.astype(int).flatten()
+    y_one_hot = np.zeros_like(probs)
+    y_one_hot[np.arange(n), y_true] = 1
+    
+    return (probs - y_one_hot) / n
 
-        logits = logits - np.max(logits, axis=1, keepdims=True)
-        exp_scores = np.exp(logits)
-        self.probs = exp_scores / np.sum(exp_scores, axis=1, keepdims=True)
-
-        # Ensure y_true is integer class indices
-        if np.ndim(y_true) == 2:
-            y_true = np.argmax(y_true, axis=1)
-        self.y_true = np.array(y_true).flatten().astype(int)
-
-        N = logits.shape[0]
-        correct_logprobs = -np.log(self.probs[np.arange(N), self.y_true] + 1e-12)
-        loss = np.mean(correct_logprobs)
-        return loss
-
-    def backward(self):
-        N = self.y_true.shape[0]
-        dZ = self.probs.copy()
-        dZ[np.arange(N), self.y_true] -= 1
-        dZ /= N
-        return dZ
+def mse_grad(y_true, logits):
+    n = logits.shape[0]
+    y_true = y_true.astype(int).flatten()
+    y_one_hot = np.zeros_like(logits)
+    y_one_hot[np.arange(n), y_true] = 1
+    
+    return 2 * (logits - y_one_hot) / n

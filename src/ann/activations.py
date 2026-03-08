@@ -1,38 +1,31 @@
+"""
+Activation Functions and Their Derivatives
+Implements: ReLU, Sigmoid, Tanh, Softmax
+"""
 import numpy as np
 
-class Activation:
-    def __init__(self, activation):
+def relu(x):
+    return np.maximum(0, x)
 
-        self.activation = activation
+def relu_derivative(x):
+    return (x > 0).astype(float)
 
-    def forward(self, Z):
-        self.Z = Z  # cache for backward
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
 
-        if self.activation == "relu":
-            return np.maximum(0, Z)
+def sigmoid_derivative(x):
+    s= sigmoid(x)
+    return s * (1 - s)
 
-        elif self.activation == "sigmoid":
-            return 1 / (1 + np.exp(-Z))
+def tanh(x):
+    return np.tanh(x)
 
-        elif self.activation == "tanh":
-            return np.tanh(Z)
+def tanh_derivative(x):
+    return 1 - np.tanh(x) ** 2
 
-        else:
-            raise ValueError("Unsupported activation")
-
-    def backward(self, dA):
-   
-        if self.activation == "relu":
-            dZ = dA * (self.Z > 0)
-
-        elif self.activation == "sigmoid":
-            sig = 1 / (1 + np.exp(-self.Z))
-            dZ = dA * sig * (1 - sig)
-
-        elif self.activation == "tanh":
-            t = np.tanh(self.Z)
-            dZ = dA * (1 - t**2)
-
-        return dZ
-    
-
+def softmax(x):
+    if x.ndim == 1:
+        x = x.reshape(1, -1)
+        
+    e = np.exp(x - np.max(x, axis=1, keepdims=True))
+    return e / np.sum(e, axis=1, keepdims=True)

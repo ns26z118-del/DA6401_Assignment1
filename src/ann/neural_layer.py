@@ -1,70 +1,49 @@
+"""
+Neural Layer Implementation
+Handles weight initialization, forward pass, and gradient computation
+"""
 import numpy as np
 
-class NeuralLayer:
-    def __init__(self, in_features, out_features, weight_init):
+class neural_layer:
 
-        self.in_features = in_features
-        self.out_features = out_features
+    def __init__(self, n_input, n_output, activation="linear", weight_init="xavier"):
+        self.activation = activation
 
         if weight_init == "xavier":
-            limit = np.sqrt(6 / (in_features + out_features))
-            self.W = np.random.uniform(-limit, limit, (in_features, out_features))
-
-        elif weight_init == "random":
-            self.W = 0.01 * np.random.randn(in_features, out_features)
-
+            limit = np.sqrt(6 / (n_input + n_output))
+            self.W = np.random.uniform(-limit, limit, (n_input, n_output))
         else:
-            raise ValueError("weight_init must be 'xavier' or 'random'")
+            self.W = np.random.randn(n_input, n_output) * 0.01
 
- 
-        self.b = np.zeros((1, out_features))
+        self.b = np.zeros((1, n_output))
 
-        # Gradients 
-        self.grad_W = None
-        self.grad_b = None
+    def forward_pass(self, X):
+        self.x = X
+        self.z = np.dot(X, self.W) + self.b
 
-    def forward(self, X):
-        """
-        Forward pass
+        if self.activation == "relu":
+            self.a = np.maximum(0, self.z)
+        elif self.activation == "sigmoid":
+            self.a = 1 / (1 + np.exp(-self.z))
+        elif self.activation == "tanh":
+            self.a = np.tanh(self.z)
+        else:
+            self.a = self.z
 
-        Parameters
-        ----------
-        X : ndarray
-            Shape (batch_size, in_features)
+        return self.a
 
-        Returns
-        -------
-        Z : ndarray
-            Shape (batch_size, out_features)
-        """
+    def backward_pass(self, grad, batch_size=None):
+        if batch_size is None:
+            batch_size = grad.shape[0]
 
-        self.X = X  # Cache input for backward pass
-        Z = X @ self.W + self.b
-        return Z
+        if self.activation == "relu":
+            grad = grad * (self.z > 0)
+        elif self.activation == "sigmoid":
+            grad = grad * self.a * (1 - self.a)
+        elif self.activation == "tanh":
+            grad = grad * (1 - self.a**2)
 
-    def backward(self, dZ):
-        """
-        Backward pass
+        self.grad_W = np.dot(self.x.T, grad) / batch_size
+        self.grad_b = np.sum(grad, axis=0, keepdims=True) / batch_size
 
-        Parameters
-        ----------
-        dZ : ndarray
-            Gradient of loss w.r.t layer output
-            Shape (batch_size, out_features)
-
-        Returns
-        -------
-        dX : ndarray
-            Gradient w.r.t input (for previous layer)
-        """
-
-        batch_size = self.X.shape[0]
-
-        # Compute gradients
-        self.grad_W = (self.X.T @ dZ) / batch_size
-        self.grad_b = np.sum(dZ, axis=0, keepdims=True) / batch_size
-
-        # Gradient for previous layer
-        dX = dZ @ self.W.T
-
-        return dX
+        return np.dot(grad, self.W.T)
