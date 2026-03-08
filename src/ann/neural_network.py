@@ -14,21 +14,14 @@ class NeuralNetwork:
 
         input_dim = 784
         num_classes = 10
-
         prev_dim = input_dim
 
         for hidden_dim in cli_args.hidden_size:
-            self.layers.append(
-                NeuralLayer(prev_dim, hidden_dim, cli_args.weight_init)
-            )
-            self.layers.append(
-                Activation(cli_args.activation)
-            )
+            self.layers.append(NeuralLayer(prev_dim, hidden_dim, cli_args.weight_init))
+            self.layers.append(Activation(cli_args.activation))
             prev_dim = hidden_dim
 
-        self.layers.append(
-            NeuralLayer(prev_dim, num_classes, cli_args.weight_init)
-        )
+        self.layers.append(NeuralLayer(prev_dim, num_classes, cli_args.weight_init))
 
         if cli_args.loss == "mse":
             self.loss_fn = MSELoss()
@@ -48,14 +41,13 @@ class NeuralNetwork:
             self.optimizer = NAG(lr, wd)
         elif cli_args.optimizer == "rmsprop":
             self.optimizer = RMSProp(lr, wd)
-        # elif cli_args.optimizer == "adam":
-        #     self.optimizer = Adam(lr, wd)
-        # elif cli_args.optimizer == "nadam":
-        #     self.optimizer = Nadam(lr, wd)
         else:
             raise ValueError("Unsupported optimizer")
 
     def forward(self, X):
+        # Always ensure 2D input (batch_size, features)
+        if X.ndim == 1:
+            X = X.reshape(1, -1)
         out = X
         for layer in self.layers:
             out = layer.forward(out)
@@ -63,16 +55,28 @@ class NeuralNetwork:
 
     def backward(self, logits=None, y_true=None):
         """
-        Backward pass. Accepts optional logits and y_true so the autograder
-        can call model.backward(logits, y_true) directly. If provided, the
-        loss forward pass is re-run first to set up internal state.
+        Backward pass. Supports both:
+          model.backward()               -- normal training (loss already computed)
+          model.backward(logits, y_true) -- autograder direct call
         """
         if logits is not None and y_true is not None:
-            # Re-run loss forward to populate loss_fn internal state
+            # Normalize shapes
+            if logits.ndim == 1:
+                logits = logits.reshape(1, -1)
+
             if self.cli_args.loss == "mse":
-                y_input = np.eye(10)[y_true] if y_true.ndim == 1 else y_true
+                # MSE expects one-hot y_true
+                if y_true.ndim == 1 and y_true.dtype in [np.int32, np.int64] and y_true.max() < 10:
+                    y_input = np.eye(10)[y_true]
+                else:
+                    y_input = y_true
             else:
-                y_input = y_true
+                # CrossEntropy expects integer class indices
+                if y_true.ndim == 2:
+                    y_input = np.argmax(y_true, axis=1)
+                else:
+                    y_input = np.array(y_true).flatten().astype(int)
+
             self.loss_fn.forward(logits, y_input)
 
         grad = self.loss_fn.backward()
@@ -83,17 +87,30 @@ class NeuralNetwork:
         return grad_list
 
     def get_weights(self):
+        """
+        Returns weights keyed by weight-layer index (0-based, skipping Activation layers).
+        Index 0 = first NeuralLayer, index 1 = second NeuralLayer, etc.
+        """
         weights = {}
-        for i, layer in enumerate(self.layers):
+        weight_idx = 0
+        for layer in self.layers:
             if hasattr(layer, 'W'):
-                weights[i] = {'W': layer.W, 'b': layer.b}
+                weights[weight_idx] = {'W': layer.W, 'b': layer.b}
+                weight_idx += 1
         return weights
 
     def set_weights(self, weights):
-        for i, layer in enumerate(self.layers):
-            if hasattr(layer, 'W') and i in weights:
-                layer.W = weights[i]['W']
-                layer.b = weights[i]['b']
+        """
+        Loads weights by weight-layer index (matching get_weights format).
+        Index 0 = first NeuralLayer, index 1 = second NeuralLayer, etc.
+        """
+        weight_idx = 0
+        for layer in self.layers:
+            if hasattr(layer, 'W'):
+                if weight_idx in weights:
+                    layer.W = weights[weight_idx]['W']
+                    layer.b = weights[weight_idx]['b']
+                weight_idx += 1
 
     def update_weights(self):
         self.optimizer.step(self.layers)
@@ -125,12 +142,8 @@ class NeuralNetwork:
                 self.update_weights()
 
             avg_loss = epoch_loss / math.ceil(n_samples / batch_size)
-
             print(f"Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}")
-            wandb.log({
-                "epoch": epoch + 1,
-                "train_loss": avg_loss
-            })
+            wandb.log({"epoch": epoch + 1, "train_loss": avg_loss})
 
     def evaluate(self, X, y):
         logits = self.forward(X)
@@ -146,10 +159,8 @@ class NeuralNetwork:
             tp = np.sum((y_pred == c) & (y == c))
             fp = np.sum((y_pred == c) & (y != c))
             fn = np.sum((y_pred != c) & (y == c))
-
             precision_c = tp / (tp + fp + 1e-8)
             recall_c = tp / (tp + fn + 1e-8)
-
             precision_list.append(precision_c)
             recall_list.append(recall_c)
 
