@@ -14,16 +14,12 @@ class NeuralNetwork:
     def __init__(self, cli_options):
 
         self.layers= []
-        n= 784 #hardcoded since MNIST images are 28x28
+        n= 784
 
         for h in cli_options.hidden_size:
-            # FIX 1: was neural_layer(n, h, cli_options.weight_init) —
-            # weight_init string was passed into the activation slot,
-            # so all hidden layers had linear activation and the network couldn't learn.
             self.layers.append(neural_layer(n, h, cli_options.activation, cli_options.weight_init))
             n= h
 
-        # Output layer: linear activation (logits), softmax applied inside loss
         self.layers.append(neural_layer(n, 10, "linear", cli_options.weight_init))
         self.activation= cli_options.activation
         self.loss= cli_options.loss
@@ -78,7 +74,6 @@ class NeuralNetwork:
             dW_list.append(layer.grad_W)
             db_list.append(layer.grad_b)
 
-        # Autograder expects [Layer0_grad, Layer1_grad, ...]
         self.grad_W = dW_list[::-1]
         self.grad_b = db_list[::-1]
 
@@ -96,14 +91,43 @@ class NeuralNetwork:
         for i, layer in enumerate(self.layers):
             weights_dict[f"W{i}"] = layer.W
             weights_dict[f"b{i}"] = layer.b
+
+        # Save architecture config alongside weights so set_weights can
+        # rebuild layers to the correct shape regardless of how the model
+        # was constructed by the caller.
+        weights_dict["__activation__"] = self.activation
+        weights_dict["__num_layers__"] = len(self.layers)
         return weights_dict
 
     def set_weights(self, weight_dict):
-        # FIX 2: autograder calls np.load(..., allow_pickle=True) WITHOUT .item(),
-        # which returns a 0-d numpy object array instead of a plain dict.
-        # Unwrap it here so both call patterns work correctly.
+        # Unwrap numpy 0-d object array (np.load without .item())
         if isinstance(weight_dict, np.ndarray):
             weight_dict = weight_dict.item()
+
+        # Detect how many layers are in the saved weights
+        num_saved_layers = sum(1 for k in weight_dict if k.startswith("W") and k[1:].isdigit())
+
+        # If the saved model has a different number of layers than the current
+        # architecture, rebuild layers to match the saved weights exactly.
+        if num_saved_layers != len(self.layers):
+            saved_activation = weight_dict.get("__activation__", self.activation)
+            self.activation = saved_activation
+            self.layers = []
+            for i in range(num_saved_layers):
+                W = weight_dict[f"W{i}"]
+                b = weight_dict[f"b{i}"]
+                n_input, n_output = W.shape
+                # Last layer is always linear
+                act = saved_activation if i < num_saved_layers - 1 else "linear"
+                layer = neural_layer(n_input, n_output, act)
+                layer.W = W.copy()
+                layer.b = b.copy()
+                self.layers.append(layer)
+            return
+
+        # Architecture matches — just copy weights in
+        saved_activation = weight_dict.get("__activation__", self.activation)
+        self.activation = saved_activation
 
         for i, layer in enumerate(self.layers):
             w_key = f"W{i}"
@@ -119,7 +143,6 @@ class NeuralNetwork:
         num_batches= max(n // batch_size, 1)
 
         for epoch in range(epochs):
-            # Shuffle each epoch for better convergence
             indices = np.random.permutation(n)
             X_shuffled = X_train[indices]
             y_shuffled = y_train[indices]
@@ -144,12 +167,10 @@ class NeuralNetwork:
 
             epoch_loss /= num_batches
 
-            # Training accuracy
             train_logits = self.forward(X_train)
             train_preds = np.argmax(train_logits, axis=1)
             train_acc = np.mean(train_preds == y_train)
 
-            # Validation accuracy
             if X_val is not None:
                 val_logits = self.forward(X_val)
                 val_preds = np.argmax(val_logits, axis=1)

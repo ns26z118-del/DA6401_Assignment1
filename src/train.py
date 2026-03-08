@@ -48,8 +48,6 @@ def main():
     wandb.init(project=args.wandb_project, config=vars(args))
 
     model= NeuralNetwork(args)
-
-    # FIX: pass X_val/y_val so validation accuracy is logged each epoch
     model.train(X_train, y_train, X_val=X_val, y_val=y_val,
                 epochs=args.epochs, batch_size=args.batch_size)
 
