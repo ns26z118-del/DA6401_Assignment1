@@ -1,6 +1,6 @@
 {
-    "dataset": "mnist",
-    "epochs": 30,
+    "dataset": "fashion_mnist",
+    "epochs": 50,
     "batch_size": 64,
     "learning_rate": 0.001,
     "weight_decay": 0.0001,
