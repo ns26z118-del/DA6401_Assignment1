@@ -26,7 +26,7 @@ def parse_arguments():
 
 def model_path(args):
     if args.model_save_path:
-        return args.model_save_path 
+        return args.model_save_path
     base= f"{args.dataset}_epochs{args.epochs}_bs{args.batch_size}_lr{args.learning_rate}_opt_{args.optimizer}_hl{'-'.join(map(str, args.hidden_size))}_act_{args.activation}_winit_{args.weight_init}"
     loc= os.path.join("..", "models")
     os.makedirs(loc, exist_ok=True)
@@ -44,13 +44,14 @@ def main():
     args= parse_arguments()
     config_dict = vars(args)
 
-    X_train, y_train, X_val, y_val, X_test, y_test = load_dataset(args.dataset) 
+    X_train, y_train, X_val, y_val, X_test, y_test = load_dataset(args.dataset)
     wandb.init(project=args.wandb_project, config=vars(args))
 
     model= NeuralNetwork(args)
 
-    # BUG FIX: was not passing X_val/y_val — validation metrics were never logged
-    model.train(X_train, y_train, X_val=X_val, y_val=y_val, epochs=args.epochs, batch_size=args.batch_size)
+    # FIX: pass X_val/y_val so validation accuracy is logged each epoch
+    model.train(X_train, y_train, X_val=X_val, y_val=y_val,
+                epochs=args.epochs, batch_size=args.batch_size)
 
     acc= model.evaluate(X_test, y_test)
     print(f"Test Accuracy: {acc:.4f}")
