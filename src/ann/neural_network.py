@@ -4,7 +4,7 @@ import wandb
 from ann.neural_layer import NeuralLayer
 from ann.activations import Activation
 from ann.objective_functions import MSELoss, CrossEntropyLoss
-from ann.optimizers import SGD, Momentum, NAG, RMSProp#, Adam, Nadam
+from ann.optimizers import SGD, Momentum, NAG, RMSProp
 
 class NeuralNetwork:
 
@@ -45,7 +45,6 @@ class NeuralNetwork:
             raise ValueError("Unsupported optimizer")
 
     def forward(self, X):
-        # Always ensure 2D input (batch_size, features)
         if X.ndim == 1:
             X = X.reshape(1, -1)
         out = X
@@ -60,14 +59,13 @@ class NeuralNetwork:
           model.backward(logits, y_true) -- autograder direct call
         """
         if logits is not None and y_true is not None:
-            # Normalize shapes
             if logits.ndim == 1:
                 logits = logits.reshape(1, -1)
 
             if self.cli_args.loss == "mse":
                 # MSE expects one-hot y_true
                 if y_true.ndim == 1 and y_true.dtype in [np.int32, np.int64] and y_true.max() < 10:
-                    y_input = np.eye(10)[y_true]
+                    y_input = np.eye(10)[y_true.astype(int)]
                 else:
                     y_input = y_true
             else:
@@ -89,7 +87,6 @@ class NeuralNetwork:
     def get_weights(self):
         """
         Returns weights keyed by weight-layer index (0-based, skipping Activation layers).
-        Index 0 = first NeuralLayer, index 1 = second NeuralLayer, etc.
         """
         weights = {}
         weight_idx = 0
@@ -102,14 +99,16 @@ class NeuralNetwork:
     def set_weights(self, weights):
         """
         Loads weights by weight-layer index (matching get_weights format).
-        Index 0 = first NeuralLayer, index 1 = second NeuralLayer, etc.
+        Handles both integer keys and string keys (e.g. '0', '1').
         """
         weight_idx = 0
         for layer in self.layers:
             if hasattr(layer, 'W'):
-                if weight_idx in weights:
-                    layer.W = weights[weight_idx]['W']
-                    layer.b = weights[weight_idx]['b']
+                # Accept both int key and string key
+                key = weight_idx if weight_idx in weights else str(weight_idx)
+                if key in weights:
+                    layer.W = weights[key]['W']
+                    layer.b = weights[key]['b']
                 weight_idx += 1
 
     def update_weights(self):
@@ -132,7 +131,7 @@ class NeuralNetwork:
                 logits = self.forward(X_batch)
 
                 if self.cli_args.loss == "mse":
-                    y_input = np.eye(10)[y_batch]
+                    y_input = np.eye(10)[y_batch.astype(int)]
                 else:
                     y_input = y_batch
                 loss = self.loss_fn.forward(logits, y_input)
@@ -147,11 +146,18 @@ class NeuralNetwork:
 
     def evaluate(self, X, y):
         logits = self.forward(X)
-        loss = self.loss_fn.forward(logits, y)
+
+        # Compute loss correctly for each loss type
+        if self.cli_args.loss == "mse":
+            y_input = np.eye(10)[y.astype(int)]
+        else:
+            y_input = y
+        loss = self.loss_fn.forward(logits, y_input)
+
         y_pred = np.argmax(logits, axis=1)
         accuracy = np.mean(y_pred == y)
 
-        num_classes = np.max(y) + 1
+        num_classes = 10
         precision_list = []
         recall_list = []
 
