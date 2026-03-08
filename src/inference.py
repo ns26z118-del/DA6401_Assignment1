@@ -8,11 +8,11 @@ from ann.neural_network import NeuralNetwork
 from utils.data_loader import load_dataset
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
 import os
+import matplotlib
+matplotlib.use('Agg')  # FIX: non-interactive backend, no display required
 import matplotlib.pyplot as plt
 
 def parse_arguments():
-    parser = argparse.ArgumentParser()
-
     parser= argparse.ArgumentParser()
     parser.add_argument("-d", "--dataset", type=str, choices=["mnist", "fashion_mnist"], default="mnist")
     parser.add_argument("-e", "--epochs", type=int, default=20)
@@ -69,19 +69,20 @@ def evaluate_model(model, X_test, y_test):
     }
 
     cm = confusion_matrix(y_test, preds, labels=np.arange(10))
-
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=np.arange(10))
-    
     disp.plot(cmap=plt.cm.Blues)
     plt.title("Confusion Matrix")
-    plt.show()
+
+    # FIX: save to file instead of plt.show() which blocks on headless servers
+    plt.savefig("confusion_matrix.png", bbox_inches="tight")
+    plt.close()
 
     return metrics
 
 def main():
     args = parse_arguments()
 
-    X_train, y_train, X_val, y_val, X_test, y_test = load_dataset(args.dataset) 
+    X_train, y_train, X_val, y_val, X_test, y_test = load_dataset(args.dataset)
     model_path = get_model_path(args)
 
     model = NeuralNetwork(args)

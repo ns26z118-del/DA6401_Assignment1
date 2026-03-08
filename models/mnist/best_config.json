@@ -1,27 +1,17 @@
 {
-    "config": {
-        "dataset": "mnist",
-        "epochs": 20,
-        "batch_size": 32,
-        "loss": "cross_entropy",
-        "optimizer": "sgd",
-        "learning_rate": 0.01,
-        "weight_decay": 0.0,
-        "num_layers": 3,
-        "hidden_size": [
-            128,
-            64,
-            32
-        ],
-        "activation": "relu",
-        "weight_init": "xavier",
-        "wandb_project": "da6401-assignment-1",
-        "model_save_path": "models/model.npy"
-    },
-    "metrics": {
-        "accuracy": 0.8893333333333333,
-        "precision": 0.8881592334143313,
-        "recall": 0.8878740889221606,
-        "f1": 0.888016633278084
-    }
+    "dataset": "mnist",
+    "epochs": 10,
+    "batch_size": 32,
+    "loss": "cross_entropy",
+    "optimizer": "sgd",
+    "learning_rate": 0.01,
+    "weight_decay": 0,
+    "num_layers": 3,
+    "hidden_size": [
+        128,
+        64,
+        32
+    ],
+    "activation": "relu",
+    "weight_init": "xavier"
 }
